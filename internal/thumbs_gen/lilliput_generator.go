@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/discord/lilliput"
-	"github.com/giobyte8/galleries/thumbnailer/internal/telemetry"
-	"github.com/giobyte8/galleries/thumbnailer/internal/telemetry/metrics"
+	"github.com/giobyte8/thumbnailer/internal/telemetry"
+	"github.com/giobyte8/thumbnailer/internal/telemetry/metrics"
 )
 
 type LilliputThumbsGenerator struct {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/giobyte8/galleries/thumbnailer/internal/telemetry/metrics"
+	"github.com/giobyte8/thumbnailer/internal/telemetry/metrics"
 )
 
 type TelemetrySvc struct {

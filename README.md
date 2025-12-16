@@ -1,6 +1,6 @@
 # Thumbnailer
 
-Thumbnails generator for image and video files discovered during galleries scan.
+Thumbnails generator for image and video files.
 
 ## Service Overview
 

@@ -1,4 +1,4 @@
-module github.com/giobyte8/galleries/thumbnailer
+module github.com/giobyte8/thumbnailer
 
 go 1.24
 

@@ -50,11 +50,11 @@ docker registry.
 Once the image is ready you can use a command like below to test it locally
 
 ```shell
-docker run -it --rm giobyte8/galleries/thumbnailer:dev
+docker run -it --rm giobyte8/thumbnailer:dev
 
 # If you want to share a custom env file you can do:
 docker run -it --rm \
   -v .env:/opt/thumbnailer/.env \
-  giobyte8/galleries/thumbnailer:dev
+  giobyte8/thumbnailer:dev
 ```
 

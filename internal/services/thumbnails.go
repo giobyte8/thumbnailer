@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/giobyte8/galleries/thumbnailer/internal/models"
-	thumbsgen "github.com/giobyte8/galleries/thumbnailer/internal/thumbs_gen"
+	"github.com/giobyte8/thumbnailer/internal/models"
+	thumbsgen "github.com/giobyte8/thumbnailer/internal/thumbs_gen"
 )
 
 type ThumbnailsConfig struct {

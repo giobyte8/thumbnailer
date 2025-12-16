@@ -10,12 +10,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/giobyte8/galleries/thumbnailer/internal/consumer"
-	"github.com/giobyte8/galleries/thumbnailer/internal/services"
+	"github.com/giobyte8/thumbnailer/internal/consumer"
+	"github.com/giobyte8/thumbnailer/internal/services"
 	"github.com/joho/godotenv"
 
-	"github.com/giobyte8/galleries/thumbnailer/internal/telemetry"
-	thumbsgen "github.com/giobyte8/galleries/thumbnailer/internal/thumbs_gen"
+	"github.com/giobyte8/thumbnailer/internal/telemetry"
+	thumbsgen "github.com/giobyte8/thumbnailer/internal/thumbs_gen"
 )
 
 func setupLogging() {

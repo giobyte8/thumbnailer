@@ -8,10 +8,10 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/giobyte8/galleries/thumbnailer/internal/models"
-	"github.com/giobyte8/galleries/thumbnailer/internal/services"
-	"github.com/giobyte8/galleries/thumbnailer/internal/telemetry"
-	"github.com/giobyte8/galleries/thumbnailer/internal/telemetry/metrics"
+	"github.com/giobyte8/thumbnailer/internal/models"
+	"github.com/giobyte8/thumbnailer/internal/services"
+	"github.com/giobyte8/thumbnailer/internal/telemetry"
+	"github.com/giobyte8/thumbnailer/internal/telemetry/metrics"
 )
 
 // Holds the config params for the consumer

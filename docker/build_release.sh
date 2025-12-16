@@ -8,7 +8,7 @@ HERE="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 BUILD_SCRIPT="_build_image.sh"
 DOCKERFILE="thumbnailer.dockerfile"
 
-IMAGE_NAME=giobyte8/galleries/thumbnailer
+IMAGE_NAME=giobyte8/thumbnailer
 IMAGE_TAG=dev
 PUSH_IMAGE=false
 
