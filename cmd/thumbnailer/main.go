@@ -82,8 +82,8 @@ func prepareAMQPConsumer(
 ) (consumer.MessageConsumer, error) {
 	var amqpCfg consumer.AMQPConfig
 	amqpCfg.AMQPUri = prepareAMQPUri()
-	amqpCfg.Exchange = os.Getenv("AMQP_EXCHANGE_GALLERIES")
-	amqpCfg.QueueName = os.Getenv("AMQP_QUEUE_DISCOVERED_FILES")
+	amqpCfg.Exchange = os.Getenv("AMQP_EXCHANGE")
+	amqpCfg.QueueName = os.Getenv("AMQP_QUEUE_THUMB_REQUESTS")
 
 	return consumer.NewAMQPConsumer(
 		amqpCfg,

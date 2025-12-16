@@ -36,24 +36,22 @@ func NewThumbnailsService(
 	}
 }
 
-func (s *ThumbnailsService) ProcessEvent(
+func (s *ThumbnailsService) ProcessRequest(
 	ctx context.Context,
-	evt models.FileDiscoveryEvent,
+	req models.ThumbRequest,
 ) error {
 	slog.Debug(
-		"Processing file discovery event",
-		"eventType",
-		evt.EventType,
+		"Processing thumbnail request",
 		"filePath",
-		evt.FilePath,
+		req.FilePath,
 	)
 
-	err := s.cleanupExisting(ctx, evt.FilePath)
+	err := s.cleanupExisting(ctx, req.FilePath)
 	if err != nil {
 		return err
 	}
 
-	thumbMeta, err := s.prepareThumbnailMeta(evt.FilePath)
+	thumbMeta, err := s.prepareThumbnailMeta(req.FilePath)
 	if err != nil {
 		return err
 	}

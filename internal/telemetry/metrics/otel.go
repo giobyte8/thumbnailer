@@ -20,9 +20,9 @@ import (
 )
 
 type OtelMetricsSvc struct {
-	fileEvtReceivedCounter metric.Int64Counter
-	thumbCreatedCounter    metric.Int64Counter
-	shutDownFuncs          []func(ctx context.Context) error
+	thumbRequestReceivedCounter metric.Int64Counter
+	thumbCreatedCounter         metric.Int64Counter
+	shutDownFuncs               []func(ctx context.Context) error
 }
 
 var serviceName = semconv.ServiceNameKey.String("thumbnailer")
@@ -34,10 +34,10 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 	}
 	meter := otel.Meter("thumbnailer")
 
-	fileEvtReceivedCounter, err := meter.Int64Counter(
-		string(FileEvtReceived),
-		metric.WithDescription("Number of received 'discovery file events'"),
-		metric.WithUnit("{event}"),
+	thumbRequestReceivedCounter, err := meter.Int64Counter(
+		string(ThumbRequestReceived),
+		metric.WithDescription("Number of received 'thumbnail requests'"),
+		metric.WithUnit("{request}"),
 	)
 	if err != nil {
 		return nil, err
@@ -53,9 +53,9 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 	}
 
 	return &OtelMetricsSvc{
-		fileEvtReceivedCounter: fileEvtReceivedCounter,
-		thumbCreatedCounter:    thumbCreatedCounter,
-		shutDownFuncs:          shutDownFuncs,
+		thumbRequestReceivedCounter: thumbRequestReceivedCounter,
+		thumbCreatedCounter:         thumbCreatedCounter,
+		shutDownFuncs:               shutDownFuncs,
 	}, nil
 }
 
@@ -74,13 +74,13 @@ func (s *OtelMetricsSvc) Increment(
 	}
 
 	switch metricName {
-	case FileEvtReceived:
+	case ThumbRequestReceived:
 		slog.Debug(
 			"Incrementing metric",
 			"metricName", metricName,
 			"attributes", attrs,
 		)
-		s.fileEvtReceivedCounter.Add(
+		s.thumbRequestReceivedCounter.Add(
 			context.Background(),
 			1,
 			metric.WithAttributeSet(attribute.NewSet(kvAttrs...)),

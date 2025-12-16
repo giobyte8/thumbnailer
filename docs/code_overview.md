@@ -7,7 +7,8 @@
 
 ## Architecture and Code Organization
 
-The Thumbnailer service processes file discovery events and generates thumbnails for discovered images. The codebase is organized into the following components:
+The Thumbnailer service processes 'thumbnail requests' and generates thumbnails
+for requested files. The codebase is organized into the following components:
 
 - **Main Entry Point**
   - Located in `cmd/thumbnailer/main.go`
@@ -15,7 +16,7 @@ The Thumbnailer service processes file discovery events and generates thumbnails
 
 - **Consumer**
   - `internal/consumer`
-  - Listens to RabbitMQ for file discovery events
+  - Listens to RabbitMQ for requests
   - Processes messages using `AMQPConsumer`
 
 - **Services**
@@ -30,7 +31,7 @@ The Thumbnailer service processes file discovery events and generates thumbnails
 
 - **Models**
   - `internal/models`
-  - Data structures like `FileDiscoveryEvent`
+  - Internal Data structures
 
 - **Scripts**
   - `scripts`

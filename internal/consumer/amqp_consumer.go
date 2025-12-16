@@ -163,8 +163,8 @@ func (c *AMQPConsumer) consume(ctx context.Context) {
 			}
 
 			// slog.Debug("AMQP - Received message", "message", string(msg.Body))
-			var fileEvt models.FileDiscoveryEvent
-			err := json.Unmarshal(msg.Body, &fileEvt)
+			var thumbRequest models.ThumbRequest
+			err := json.Unmarshal(msg.Body, &thumbRequest)
 			if err != nil {
 				slog.Error(
 					"AMQP - Failed to unmarshal message",
@@ -181,24 +181,20 @@ func (c *AMQPConsumer) consume(ctx context.Context) {
 			}
 
 			c.telemetry.Metrics().Increment(
-				metrics.FileEvtReceived,
+				metrics.ThumbRequestReceived,
 				map[string]string{
-					"eventType": fileEvt.EventType,
-					"filePath":  fileEvt.FilePath,
+					"filePath": thumbRequest.FilePath,
 				},
 			)
 
-			// TODO Verify event type (?)
-			err = c.thumbnailSvc.ProcessEvent(ctx, fileEvt)
+			err = c.thumbnailSvc.ProcessRequest(ctx, thumbRequest)
 			if err != nil {
 				slog.Error(
-					"AMQP - Failed to process file discovery event",
+					"AMQP - Failed to process thumbnail request",
 					"error",
 					err,
-					"eventType",
-					fileEvt.EventType,
 					"filePath",
-					fileEvt.FilePath,
+					thumbRequest.FilePath,
 				)
 
 				if nackErr := msg.Nack(false, false); nackErr != nil {

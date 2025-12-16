@@ -9,8 +9,8 @@ import (
 type MetricName string
 
 const (
-	FileEvtReceived MetricName = "file.event.received"
-	ThumbCreated    MetricName = "thumbnail.created"
+	ThumbRequestReceived MetricName = "thumbnail.request.received"
+	ThumbCreated         MetricName = "thumbnail.created"
 )
 
 type MetricsSvc interface {
