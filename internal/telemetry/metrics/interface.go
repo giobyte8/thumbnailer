@@ -9,8 +9,9 @@ import (
 type MetricName string
 
 const (
-	ThumbRequestReceived MetricName = "thumbnail.request.received"
-	ThumbCreated         MetricName = "thumbnail.created"
+	ThumbGenRequestReceived MetricName = "thumb.request.generate.received"
+	ThumbDelRequestReceived MetricName = "thumb.request.delete.received"
+	ThumbCreated            MetricName = "thumb.created"
 )
 
 type MetricsSvc interface {

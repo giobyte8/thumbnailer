@@ -22,8 +22,8 @@ rm "$DOWNLOAD_DST"/*
 
 galleries=(
     "https://500px.com/p/kid_of_ozz/galleries/places"
-    "https://500px.com/p/kid_of_ozz/galleries/endless-summer-x-kidofozz"
-    "https://500px.com/p/DmitriySoloduhin/galleries/my-lego-photos"
+    #"https://500px.com/p/kid_of_ozz/galleries/endless-summer-x-kidofozz"
+    #"https://500px.com/p/DmitriySoloduhin/galleries/my-lego-photos"
 )
 
 # Download each gallery

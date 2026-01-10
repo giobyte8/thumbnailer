@@ -83,7 +83,8 @@ func prepareAMQPConsumer(
 	var amqpCfg consumer.AMQPConfig
 	amqpCfg.AMQPUri = prepareAMQPUri()
 	amqpCfg.Exchange = os.Getenv("AMQP_EXCHANGE")
-	amqpCfg.QueueName = os.Getenv("AMQP_QUEUE_THUMB_REQUESTS")
+	amqpCfg.ThumbsGenQueueName = os.Getenv("AMQP_QUEUE_THUMB_GEN_REQUESTS")
+	amqpCfg.ThumbsDelQueueName = os.Getenv("AMQP_QUEUE_THUMB_DEL_REQUESTS")
 
 	return consumer.NewAMQPConsumer(
 		amqpCfg,

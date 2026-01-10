@@ -20,9 +20,10 @@ import (
 )
 
 type OtelMetricsSvc struct {
-	thumbRequestReceivedCounter metric.Int64Counter
-	thumbCreatedCounter         metric.Int64Counter
-	shutDownFuncs               []func(ctx context.Context) error
+	thumbGenRequestReceivedCounter metric.Int64Counter
+	thumbDelRequestReceivedCounter metric.Int64Counter
+	thumbCreatedCounter            metric.Int64Counter
+	shutDownFuncs                  []func(ctx context.Context) error
 }
 
 var serviceName = semconv.ServiceNameKey.String("thumbnailer")
@@ -34,9 +35,22 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 	}
 	meter := otel.Meter("thumbnailer")
 
-	thumbRequestReceivedCounter, err := meter.Int64Counter(
-		string(ThumbRequestReceived),
-		metric.WithDescription("Number of received 'thumbnail requests'"),
+	thumbGenRequestReceivedCounter, err := meter.Int64Counter(
+		string(ThumbGenRequestReceived),
+		metric.WithDescription(
+			"Number of received 'generate thumbnail' requests'",
+		),
+		metric.WithUnit("{request}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	thumbDelRequestReceivedCounter, err := meter.Int64Counter(
+		string(ThumbDelRequestReceived),
+		metric.WithDescription(
+			"Number of received 'delete thumbnail' requests'",
+		),
 		metric.WithUnit("{request}"),
 	)
 	if err != nil {
@@ -53,9 +67,10 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 	}
 
 	return &OtelMetricsSvc{
-		thumbRequestReceivedCounter: thumbRequestReceivedCounter,
-		thumbCreatedCounter:         thumbCreatedCounter,
-		shutDownFuncs:               shutDownFuncs,
+		thumbGenRequestReceivedCounter: thumbGenRequestReceivedCounter,
+		thumbDelRequestReceivedCounter: thumbDelRequestReceivedCounter,
+		thumbCreatedCounter:            thumbCreatedCounter,
+		shutDownFuncs:                  shutDownFuncs,
 	}, nil
 }
 
@@ -74,13 +89,19 @@ func (s *OtelMetricsSvc) Increment(
 	}
 
 	switch metricName {
-	case ThumbRequestReceived:
+	case ThumbGenRequestReceived:
 		slog.Debug(
 			"Incrementing metric",
 			"metricName", metricName,
 			"attributes", attrs,
 		)
-		s.thumbRequestReceivedCounter.Add(
+		s.thumbGenRequestReceivedCounter.Add(
+			context.Background(),
+			1,
+			metric.WithAttributeSet(attribute.NewSet(kvAttrs...)),
+		)
+	case ThumbDelRequestReceived:
+		s.thumbDelRequestReceivedCounter.Add(
 			context.Background(),
 			1,
 			metric.WithAttributeSet(attribute.NewSet(kvAttrs...)),

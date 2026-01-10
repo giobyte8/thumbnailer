@@ -16,9 +16,11 @@ import (
 
 // Holds the config params for the consumer
 type AMQPConfig struct {
-	AMQPUri   string
-	Exchange  string
-	QueueName string
+	AMQPUri  string
+	Exchange string
+
+	ThumbsGenQueueName string
+	ThumbsDelQueueName string
 }
 
 type AMQPConsumer struct {
@@ -42,8 +44,15 @@ func NewAMQPConsumer(
 	if config.Exchange == "" {
 		return nil, fmt.Errorf("AMQP exchange cannot be empty in config")
 	}
-	if config.QueueName == "" {
-		return nil, fmt.Errorf("AMQP queue name cannot be empty in config")
+	if config.ThumbsGenQueueName == "" {
+		return nil, fmt.Errorf(
+			"AMQP thumbs generation queue name cannot be empty in config",
+		)
+	}
+	if config.ThumbsDelQueueName == "" {
+		return nil, fmt.Errorf(
+			"AMQP thumbs delete queue name cannot be empty in config",
+		)
 	}
 
 	return &AMQPConsumer{
@@ -85,34 +94,49 @@ func (c *AMQPConsumer) Start(ctx context.Context) error {
 		return fmt.Errorf("AMQP - Failed to declare exchange: %w", err)
 	}
 
-	_, err = c.channel.QueueDeclare(
-		c.config.QueueName,
-		true,  // durable
-		false, // auto-delete
-		false, // exclusive
-		false, // no-wait
-		nil,   // arguments
-	)
-	if err != nil {
-		c.channel.Close()
-		c.conn.Close()
-		return fmt.Errorf("AMQP - Failed to declare queue: %w", err)
+	// Helper function to declare and bind a given queue
+	declareAndBind := func(queueName string) error {
+		_, err := c.channel.QueueDeclare(
+			queueName,
+			true,  // durable
+			false, // auto-delete
+			false, // exclusive
+			false, // no-wait
+			nil,   // arguments
+		)
+		if err != nil {
+			return err
+		}
+
+		return c.channel.QueueBind(
+			queueName,         // Queue
+			queueName,         // Routing key
+			c.config.Exchange, // Exchange
+			false,             // No-wait
+			nil,               // Arguments
+		)
 	}
 
-	err = c.channel.QueueBind(
-		c.config.QueueName, // Queue
-		c.config.QueueName, // Routing key
-		c.config.Exchange,  // Exchange
-		false,              // No-wait
-		nil,                // Arguments
-	)
-	if err != nil {
+	if err := declareAndBind(c.config.ThumbsGenQueueName); err != nil {
 		c.channel.Close()
 		c.conn.Close()
-		return fmt.Errorf("AMQP - Failed to bind queue: %w", err)
+		return fmt.Errorf(
+			"AMQP - Failed to declare/bind thumbs generation queue: %w",
+			err,
+		)
 	}
 
-	go c.consume(ctx)
+	if err := declareAndBind(c.config.ThumbsDelQueueName); err != nil {
+		c.channel.Close()
+		c.conn.Close()
+		return fmt.Errorf(
+			"AMQP - Failed to declare/bind thumbs delete queue: %w",
+			err,
+		)
+	}
+
+	go c.consumeThumbsGenRequests(ctx)
+	go c.consumeThumbsDelRequests(ctx)
 	return nil
 }
 
@@ -139,18 +163,22 @@ func (c *AMQPConsumer) Stop() {
 	slog.Info("AMQP - AMQP Consumer stopped")
 }
 
-func (c *AMQPConsumer) consume(ctx context.Context) {
+func (c *AMQPConsumer) consumeThumbsGenRequests(ctx context.Context) {
 	msgs, err := c.channel.Consume(
-		c.config.QueueName,
-		"thumbnailer", // Consumer tag
-		false,         // Auto-acknowledge
-		false,         // Exclusive
-		false,         // No-local
-		false,         // No-wait
-		nil,           // Arguments
+		c.config.ThumbsGenQueueName,
+		"thumbnailer-gen", // Consumer tag
+		false,             // Auto-acknowledge
+		false,             // Exclusive
+		false,             // No-local
+		false,             // No-wait
+		nil,               // Arguments
 	)
 	if err != nil {
-		slog.Error("AMQP - Failed to create queue consumer", "error", err)
+		slog.Error(
+			"AMQP - Failed to create thumbs gen queue consumer",
+			"error",
+			err,
+		)
 		return
 	}
 
@@ -158,16 +186,17 @@ func (c *AMQPConsumer) consume(ctx context.Context) {
 		select {
 		case msg, ok := <-msgs:
 			if !ok {
-				slog.Info("AMQP - Message channel closed. goroutine exiting")
+				slog.Info(
+					"AMQP - Thumbs gen message channel closed. goroutine exiting",
+				)
 				return
 			}
 
-			// slog.Debug("AMQP - Received message", "message", string(msg.Body))
 			var thumbRequest models.ThumbRequest
 			err := json.Unmarshal(msg.Body, &thumbRequest)
 			if err != nil {
 				slog.Error(
-					"AMQP - Failed to unmarshal message",
+					"AMQP - Failed to unmarshal thumbs gen message",
 					"error",
 					err,
 					"message",
@@ -175,22 +204,26 @@ func (c *AMQPConsumer) consume(ctx context.Context) {
 				)
 
 				if nackErr := msg.Nack(false, false); nackErr != nil {
-					slog.Error("AMQP - Failed to nack message", "error", nackErr)
+					slog.Error(
+						"AMQP - Failed to nack thumbs gen message",
+						"error",
+						nackErr,
+					)
 				}
 				continue
 			}
 
 			c.telemetry.Metrics().Increment(
-				metrics.ThumbRequestReceived,
+				metrics.ThumbGenRequestReceived,
 				map[string]string{
 					"filePath": thumbRequest.FilePath,
 				},
 			)
 
-			err = c.thumbnailSvc.ProcessRequest(ctx, thumbRequest)
+			err = c.thumbnailSvc.ProcessGenRequest(ctx, thumbRequest)
 			if err != nil {
 				slog.Error(
-					"AMQP - Failed to process thumbnail request",
+					"AMQP - Failed to process thumbnail generation request",
 					"error",
 					err,
 					"filePath",
@@ -198,19 +231,123 @@ func (c *AMQPConsumer) consume(ctx context.Context) {
 				)
 
 				if nackErr := msg.Nack(false, false); nackErr != nil {
-					slog.Error("AMQP - Failed to nack message", "error", nackErr)
+					slog.Error(
+						"AMQP - Failed to nack thumbs gen message",
+						"error",
+						nackErr,
+					)
 				}
 				continue
 			}
 
 			// Acknowledge the message
 			if err := msg.Ack(false); err != nil {
-				slog.Error("AMQP - Failed to acknowledge message", "error", err)
+				slog.Error(
+					"AMQP - Failed to acknowledge thumbs gen message",
+					"error",
+					err,
+				)
 			}
 
 		case <-ctx.Done():
 			slog.Info(
-				"AMQP - Context done signal received, stopping consumption goroutine...",
+				"AMQP - Context done signal received, " +
+					"stopping thumbs gen consumption goroutine...",
+			)
+			return
+		}
+	}
+}
+
+func (c *AMQPConsumer) consumeThumbsDelRequests(ctx context.Context) {
+	msgs, err := c.channel.Consume(
+		c.config.ThumbsDelQueueName,
+		"thumbnailer-del", // Consumer tag
+		false,             // Auto-acknowledge
+		false,             // Exclusive
+		false,             // No-local
+		false,             // No-wait
+		nil,               // Arguments
+	)
+	if err != nil {
+		slog.Error(
+			"AMQP - Failed to create thumbs del queue consumer",
+			"error",
+			err,
+		)
+		return
+	}
+
+	for {
+		select {
+		case msg, ok := <-msgs:
+			if !ok {
+				slog.Info(
+					"AMQP - Thumbs del message channel closed. goroutine exiting",
+				)
+				return
+			}
+
+			var thumbRequest models.ThumbRequest
+			err := json.Unmarshal(msg.Body, &thumbRequest)
+			if err != nil {
+				slog.Error(
+					"AMQP - Failed to unmarshal thumbs del message",
+					"error",
+					err,
+					"message",
+					string(msg.Body),
+				)
+
+				if nackErr := msg.Nack(false, false); nackErr != nil {
+					slog.Error(
+						"AMQP - Failed to nack thumbs del message",
+						"error",
+						nackErr,
+					)
+				}
+				continue
+			}
+
+			c.telemetry.Metrics().Increment(
+				metrics.ThumbDelRequestReceived,
+				map[string]string{
+					"filePath": thumbRequest.FilePath,
+				},
+			)
+
+			err = c.thumbnailSvc.ProcessDelRequest(ctx, thumbRequest)
+			if err != nil {
+				slog.Error(
+					"AMQP - Failed to process thumbnail delete request",
+					"error",
+					err,
+					"filePath",
+					thumbRequest.FilePath,
+				)
+
+				if nackErr := msg.Nack(false, false); nackErr != nil {
+					slog.Error(
+						"AMQP - Failed to nack thumbs del message",
+						"error",
+						nackErr,
+					)
+				}
+				continue
+			}
+
+			if err := msg.Ack(false); err != nil {
+				slog.Error(
+					"AMQP - Failed to acknowledge thumbs del message",
+					"error",
+					err,
+				)
+			}
+
+		case <-ctx.Done():
+			slog.Info(
+				"AMQP - Context done signal received, " +
+					"stopping thumbs del consumption goroutine...",
 			)
 			return
 		}

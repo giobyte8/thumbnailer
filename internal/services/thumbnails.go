@@ -36,12 +36,12 @@ func NewThumbnailsService(
 	}
 }
 
-func (s *ThumbnailsService) ProcessRequest(
+func (s *ThumbnailsService) ProcessGenRequest(
 	ctx context.Context,
 	req models.ThumbRequest,
 ) error {
 	slog.Debug(
-		"Processing thumbnail request",
+		"Processing thumbnail generation request",
 		"filePath",
 		req.FilePath,
 	)
@@ -62,6 +62,19 @@ func (s *ThumbnailsService) ProcessRequest(
 	}
 
 	return nil
+}
+
+func (s *ThumbnailsService) ProcessDelRequest(
+	ctx context.Context,
+	req models.ThumbRequest,
+) error {
+	slog.Debug(
+		"Processing thumbnail delete request",
+		"filePath",
+		req.FilePath,
+	)
+
+	return s.cleanupExisting(ctx, req.FilePath)
 }
 
 func (s *ThumbnailsService) cleanupExisting(

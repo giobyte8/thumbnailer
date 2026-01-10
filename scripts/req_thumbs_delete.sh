@@ -1,7 +1,7 @@
 #!/bin/bash
 # Generates AMQP messages for development and testing purposes.
 # It generates messages for the following queues:
-#   - ${AMQP_QUEUE_THUMB_REQUESTS} - One message per file at /runtime/originals
+#   - ${AMQP_QUEUE_THUMB_DEL_REQUESTS} - One message per file at $DIR_ORIGINALS_ROOT
 
 function json_escape() {
   printf '%s' "$1" | python -c 'import json,sys; print(json.dumps(sys.stdin.read()))'
@@ -38,7 +38,7 @@ for file in "$ORIGINALS"/*; do
 
     amqp_msg="{
         \"properties\": {},
-        \"routing_key\": \"$AMQP_QUEUE_THUMB_REQUESTS\",
+        \"routing_key\": \"$AMQP_QUEUE_THUMB_DEL_REQUESTS\",
         \"payload\": $j_msg,
         \"payload_encoding\": \"string\"
     }"
