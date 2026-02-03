@@ -15,6 +15,7 @@ const (
 )
 
 type MetricsSvc interface {
-	Increment(metric MetricName, attrs map[string]string)
+	Increment(metric MetricName)
+	IncrementWAttrs(metric MetricName, attrs map[string]string)
 	Shutdown(ctx context.Context) error
 }

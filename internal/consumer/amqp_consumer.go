@@ -213,12 +213,7 @@ func (c *AMQPConsumer) consumeThumbsGenRequests(ctx context.Context) {
 				continue
 			}
 
-			c.telemetry.Metrics().Increment(
-				metrics.ThumbGenRequestReceived,
-				map[string]string{
-					"filePath": thumbRequest.FilePath,
-				},
-			)
+			c.telemetry.Metrics().Increment(metrics.ThumbGenRequestReceived)
 
 			err = c.thumbnailSvc.ProcessGenRequest(ctx, thumbRequest)
 			if err != nil {
@@ -309,12 +304,7 @@ func (c *AMQPConsumer) consumeThumbsDelRequests(ctx context.Context) {
 				continue
 			}
 
-			c.telemetry.Metrics().Increment(
-				metrics.ThumbDelRequestReceived,
-				map[string]string{
-					"filePath": thumbRequest.FilePath,
-				},
-			)
+			c.telemetry.Metrics().Increment(metrics.ThumbDelRequestReceived)
 
 			err = c.thumbnailSvc.ProcessDelRequest(ctx, thumbRequest)
 			if err != nil {

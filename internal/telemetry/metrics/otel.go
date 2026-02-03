@@ -74,7 +74,11 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 	}, nil
 }
 
-func (s *OtelMetricsSvc) Increment(
+func (s *OtelMetricsSvc) Increment(metricName MetricName) {
+	s.IncrementWAttrs(metricName, nil)
+}
+
+func (s *OtelMetricsSvc) IncrementWAttrs(
 	metricName MetricName,
 	attrs map[string]string,
 ) {

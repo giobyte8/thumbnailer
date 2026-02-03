@@ -139,16 +139,7 @@ func (g *LilliputThumbsGenerator) Generate(
 		}
 
 		// Record metric to count generated thumbnail
-		g.telemetry.Metrics().Increment(
-			metrics.ThumbCreated,
-			map[string]string{
-				"filePath":   meta.OrigFileRelPath,
-				"origSize":   fmt.Sprintf("%d", len(inputBuf)),
-				"origWidth":  fmt.Sprintf("%d", origWidth),
-				"thumbSize":  fmt.Sprintf("%d", len(resizedImgBuf)),
-				"thumbWidth": fmt.Sprintf("%d", tgtWidth),
-			},
-		)
+		g.telemetry.Metrics().Increment(metrics.ThumbCreated)
 	}
 
 	return nil

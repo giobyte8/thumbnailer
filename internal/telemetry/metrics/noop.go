@@ -10,7 +10,11 @@ func NewNoopMetricsSvc() *NoopMetricsSvc {
 	return &NoopMetricsSvc{}
 }
 
-func (n *NoopMetricsSvc) Increment(
+func (n *NoopMetricsSvc) Increment(metric MetricName) {
+	// No operation performed
+}
+
+func (n *NoopMetricsSvc) IncrementWAttrs(
 	metric MetricName,
 	attrs map[string]string) {
 	// No operation performed
