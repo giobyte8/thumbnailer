@@ -150,7 +150,12 @@ func prepareThumbsService(telemetry *telemetry.TelemetrySvc) *services.Thumbnail
 		)
 	}
 
-	thumbsGenerator := thumbsgen.NewLilliputThumbsGenerator(telemetry)
+	ffmpegGenerator := thumbsgen.NewFFmpegThumbsGenerator(telemetry)
+	lilliputGenerator := thumbsgen.NewLilliputThumbsGenerator(telemetry)
+	thumbsGenerator := thumbsgen.NewDefaultRoutedThumbsGenerator(
+		ffmpegGenerator,
+		lilliputGenerator,
+	)
 	return services.NewThumbnailsService(thumbsConfig, thumbsGenerator)
 }
 

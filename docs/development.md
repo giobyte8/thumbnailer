@@ -6,9 +6,16 @@ Copy the `template.env` file to `.env` and update with your own values:
 cp template.env .env && vim .env
 # Enter appropriate values for environment variables.
 
+# Install local media tools used by thumbnail generators
+brew install ffmpeg
+brew install libheif
+
 # Install Go dependencies
 go mod tidy
 ```
+
+- `ffmpeg` is needed when generating thumbnails from `.mp4` and `.mov` videos.
+- `libheif` provides `heif-convert`, used to convert `.heic` images into `.jpg` before resizing them.
 
 ## Running tests
 To run all project tests, use:

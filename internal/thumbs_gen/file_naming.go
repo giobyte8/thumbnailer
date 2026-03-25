@@ -29,3 +29,10 @@ func mkThumbFileAbsPath(
 
 	return filepath.Join(meta.ThumbFileAbsDir, thumbFileName)
 }
+
+func mkDerivedFileAbsPath(meta ThumbnailMeta, extension string) string {
+	return filepath.Join(
+		meta.ThumbFileAbsDir,
+		fmt.Sprintf("%s%s", baseNameNoExt(meta), extension),
+	)
+}

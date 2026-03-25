@@ -27,7 +27,8 @@ for requested files. The codebase is organized into the following components:
 - **Thumbnail Generation**
   - `internal/thumbs_gen`
   - Defines `ThumbsGenerator` interface
-  - Current implementation: `LilliputThumbsGenerator` (uses Lilliput library)
+  - Current implementation: `RoutedThumbsGenerator` delegates by file extension
+    to specialized generators (`FFmpegThumbsGenerator` and `LilliputThumbsGenerator`)
 
 - **Models**
   - `internal/models`
@@ -43,7 +44,7 @@ for requested files. The codebase is organized into the following components:
 
 ## Abstractions and Extensibility
 
-| Interface          | Current Implementation       | Purpose                                      |
-|--------------------|------------------------------|----------------------------------------------|
-| `MessageConsumer`  | `AMQPConsumer`               | Consumes messages from RabbitMQ              |
-| `ThumbsGenerator`  | `LilliputThumbsGenerator`    | Generates thumbnails using Lilliput library  |
+| Interface          | Current Implementation       | Purpose                                                   |
+|--------------------|------------------------------|-----------------------------------------------------------|
+| `MessageConsumer`  | `AMQPConsumer`               | Consumes messages from RabbitMQ                           |
+| `ThumbsGenerator`  | `RoutedThumbsGenerator`      | Routes thumbnail generation to format-specific generators |

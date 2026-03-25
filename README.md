@@ -36,5 +36,5 @@ Below is a high-level diagram of the service's workflow:
 ### Workflow Steps
 1. **RabbitMQ Queue**: The service listens to a specific RabbitMQ queue for requests.
 2. **Consumer**: The `Consumer` component processes incoming messages and extracts relevant metadata about the media files.
-3. **Thumbnails Generator**: The `Thumbnails Generator` component generates thumbnails for the images using the configured library (e.g., Lilliput).
+3. **Thumbnails Generator**: The `Thumbnails Generator` component generates thumbnails for the images using the configured libraries (Lilliput, ffmpeg, etc.).
 4. **Output Directory**: The generated thumbnails are stored in the configured path

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -15,7 +16,8 @@ import (
 )
 
 type LilliputThumbsGenerator struct {
-	telemetry *telemetry.TelemetrySvc
+	telemetry       *telemetry.TelemetrySvc
+	heifConvertPath string
 }
 
 func NewLilliputThumbsGenerator(
@@ -23,7 +25,8 @@ func NewLilliputThumbsGenerator(
 ) *LilliputThumbsGenerator {
 
 	return &LilliputThumbsGenerator{
-		telemetry: telemetry,
+		telemetry:       telemetry,
+		heifConvertPath: "heif-convert",
 	}
 }
 
@@ -37,19 +40,19 @@ func (g *LilliputThumbsGenerator) Generate(
 		meta.OrigFileRelPath,
 	)
 
-	origFileAbsPath := filepath.Join(
-		meta.OrigFilesRootDir,
-		meta.OrigFileRelPath,
-	)
+	inputFileAbsPath, inputFileLabel, err := g.prepareInputFile(ctx, meta)
+	if err != nil {
+		return err
+	}
 
 	// Load original file into memory
-	inputBuf, err := g.readFile(origFileAbsPath)
+	inputBuf, err := g.readFile(inputFileAbsPath)
 	if err != nil {
 		return err
 	}
 
 	// Using lilliput, Decode original image to retrieve its dimensions
-	decoder, err := g.decode(meta.OrigFileRelPath, inputBuf)
+	decoder, err := g.decode(inputFileLabel, inputBuf)
 	if err != nil {
 		return err
 	}
@@ -57,7 +60,7 @@ func (g *LilliputThumbsGenerator) Generate(
 
 	// Get original image dimensions
 	origWidth, origHeight, err := g.getOrigDimensions(
-		meta.OrigFileRelPath,
+		inputFileLabel,
 		decoder,
 	)
 	if err != nil {
@@ -86,7 +89,7 @@ func (g *LilliputThumbsGenerator) Generate(
 		}
 
 		// TODO: Find a way to reuse decoder for multiple widths
-		decoder, err := g.decode(origFileAbsPath, inputBuf)
+		decoder, err := g.decode(inputFileLabel, inputBuf)
 		if err != nil {
 			return err
 		}
@@ -109,7 +112,7 @@ func (g *LilliputThumbsGenerator) Generate(
 		if err != nil {
 			return fmt.Errorf(
 				"failed to create thumbnail for %s: %w",
-				meta.OrigFileRelPath,
+				inputFileLabel,
 				err,
 			)
 		}
@@ -132,6 +135,62 @@ func (g *LilliputThumbsGenerator) Generate(
 	return nil
 }
 
+func (g *LilliputThumbsGenerator) prepareInputFile(
+	ctx context.Context,
+	meta ThumbnailMeta,
+) (string, string, error) {
+	origFileAbsPath := filepath.Join(meta.OrigFilesRootDir, meta.OrigFileRelPath)
+	if !isHEICFile(meta.OrigFileRelPath) {
+		return origFileAbsPath, meta.OrigFileRelPath, nil
+	}
+
+	convertedFileAbsPath := mkDerivedFileAbsPath(meta, ".jpg")
+	if err := g.convertHEICToJPEG(ctx, origFileAbsPath, convertedFileAbsPath); err != nil {
+		return "", "", err
+	}
+
+	return convertedFileAbsPath, convertedFileAbsPath, nil
+}
+
+func (g *LilliputThumbsGenerator) convertHEICToJPEG(
+	ctx context.Context,
+	inputFileAbsPath string,
+	outputFileAbsPath string,
+) error {
+	slog.Debug(
+		"Converting HEIC image to JPEG before generating thumbnails",
+		"input",
+		inputFileAbsPath,
+		"output",
+		outputFileAbsPath,
+	)
+
+	cmd := exec.CommandContext(
+		ctx,
+		g.heifConvertPath,
+		g.mkHEIFConvertArgs(inputFileAbsPath, outputFileAbsPath)...,
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf(
+			"heif-convert failed for %s: %w. output: %s",
+			inputFileAbsPath,
+			err,
+			strings.TrimSpace(string(output)),
+		)
+	}
+
+	return nil
+}
+
+func (g *LilliputThumbsGenerator) mkHEIFConvertArgs(
+	inputFileAbsPath string,
+	outputFileAbsPath string,
+) []string {
+	return []string{inputFileAbsPath, outputFileAbsPath}
+}
+
 func encodeOptionsByExtension(extension string) map[int]int {
 	// Select encoder options based on output file format.
 	// Different formats expect different option keys in lilliput.
@@ -149,6 +208,10 @@ func encodeOptionsByExtension(extension string) map[int]int {
 		// Higher values = better quality and larger file size.
 		return map[int]int{lilliput.JpegQuality: ThumbsQuality}
 	}
+}
+
+func isHEICFile(filePath string) bool {
+	return strings.ToLower(filepath.Ext(filePath)) == ".heic"
 }
 
 func (g *LilliputThumbsGenerator) readFile(

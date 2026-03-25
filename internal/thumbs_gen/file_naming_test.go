@@ -28,3 +28,16 @@ func TestMkThumbFileAbsPath(t *testing.T) {
 		t.Fatalf("unexpected thumbnail path: got %q want %q", got, want)
 	}
 }
+
+func TestMkDerivedFileAbsPath(t *testing.T) {
+	meta := ThumbnailMeta{
+		OrigFileRelPath: filepath.Join("nested", "folder", "sample.heic"),
+		ThumbFileAbsDir: filepath.Join("/tmp", "thumbs", "nested", "folder"),
+	}
+
+	got := mkDerivedFileAbsPath(meta, ".jpg")
+	want := filepath.Join("/tmp", "thumbs", "nested", "folder", "sample.jpg")
+	if got != want {
+		t.Fatalf("unexpected derived file path: got %q want %q", got, want)
+	}
+}
