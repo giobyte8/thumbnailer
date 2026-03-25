@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/discord/lilliput"
 	"github.com/giobyte8/thumbnailer/internal/telemetry"
@@ -72,13 +73,6 @@ func (g *LilliputThumbsGenerator) Generate(
 	// Create a 50MB buffer to store resized image(s)
 	resizeBuffer := make([]byte, 500*1024*1024)
 
-	// All thumb files will share the same base name
-	fileBaseName := filepath.Base(meta.OrigFileRelPath)
-	fileBaseNameNoExt := strings.TrimSuffix(
-		fileBaseName,
-		filepath.Ext(fileBaseName),
-	)
-
 	// Iterate meta.TargetWidths and generate a thumbnail for each width
 	for _, tgtWidth := range meta.ThumbWidths {
 		select {
@@ -100,14 +94,14 @@ func (g *LilliputThumbsGenerator) Generate(
 
 		tgtHeight := (origHeight * tgtWidth) / origWidth
 		opts := &lilliput.ImageOptions{
-			FileType:             ThumbsExtension,
-			Width:                tgtWidth,
-			Height:               tgtHeight,
-			ResizeMethod:         lilliput.ImageOpsFit,
-			NormalizeOrientation: true,
-			EncodeOptions: map[int]int{
-				lilliput.JpegQuality: ThumbsQuality,
-			},
+			FileType:              ThumbsExtension,
+			Width:                 tgtWidth,
+			Height:                tgtHeight,
+			ResizeMethod:          lilliput.ImageOpsFit,
+			NormalizeOrientation:  true,
+			EncodeOptions:         encodeOptionsByExtension(ThumbsExtension),
+			DisableAnimatedOutput: true,
+			EncodeTimeout:         5 * time.Second,
 		}
 
 		// Create thumbnail
@@ -120,14 +114,7 @@ func (g *LilliputThumbsGenerator) Generate(
 			)
 		}
 
-		// Compute thumb file name and path
-		thumbFileName := fmt.Sprintf(
-			"%s_%dpx%s",
-			fileBaseNameNoExt,
-			tgtWidth,
-			ThumbsExtension,
-		)
-		thumbFileAbsPath := filepath.Join(meta.ThumbFileAbsDir, thumbFileName)
+		thumbFileAbsPath := mkThumbFileAbsPath(meta, tgtWidth, ThumbsExtension)
 
 		// Save thumbnail to file
 		if err := os.WriteFile(thumbFileAbsPath, resizedImgBuf, 0644); err != nil {
@@ -143,6 +130,25 @@ func (g *LilliputThumbsGenerator) Generate(
 	}
 
 	return nil
+}
+
+func encodeOptionsByExtension(extension string) map[int]int {
+	// Select encoder options based on output file format.
+	// Different formats expect different option keys in lilliput.
+	switch strings.ToLower(extension) {
+	case ".webp":
+		// WebP uses a quality value from 0-100.
+		// Higher values = better visual quality and larger file size.
+		return map[int]int{lilliput.WebpQuality: ThumbsQuality}
+	case ".png":
+		// PNG uses compression level from 0-9 (lossless format).
+		// Higher values usually reduce size but may take more CPU time.
+		return map[int]int{lilliput.PngCompression: 3}
+	default:
+		// Default to JPEG quality (0-100).
+		// Higher values = better quality and larger file size.
+		return map[int]int{lilliput.JpegQuality: ThumbsQuality}
+	}
 }
 
 func (g *LilliputThumbsGenerator) readFile(

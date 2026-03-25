@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-const ThumbsExtension = ".jpg"
+const ThumbsExtension = ".webp"
 const ThumbsQuality = 60
 
 // ThumbnailMeta holds all the necessary metadata for generating

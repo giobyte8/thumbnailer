@@ -10,6 +10,17 @@ cp template.env .env && vim .env
 go mod tidy
 ```
 
+## Running tests
+To run all project tests, use:
+```bash
+go test ./...
+```
+
+To run only the thumbnail generator tests, use:
+```bash
+go test ./internal/thumbs_gen -v
+```
+
 ## Running the Project
 To run the project in development mode, use the following command:
 ```bash
