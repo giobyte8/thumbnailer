@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -13,20 +12,22 @@ import (
 	"github.com/discord/lilliput"
 	"github.com/giobyte8/thumbnailer/internal/telemetry"
 	"github.com/giobyte8/thumbnailer/internal/telemetry/metrics"
+	formatconverter "github.com/giobyte8/thumbnailer/internal/thumbs_gen/format_converter"
 )
 
 type LilliputThumbsGenerator struct {
 	telemetry       *telemetry.TelemetrySvc
-	heifConvertPath string
+	formatConverter formatconverter.ImageFormatConverter
 }
 
+// NewLilliputThumbsGenerator builds an image thumbnail generator with explicit dependencies.
 func NewLilliputThumbsGenerator(
 	telemetry *telemetry.TelemetrySvc,
+	converter formatconverter.ImageFormatConverter,
 ) *LilliputThumbsGenerator {
-
 	return &LilliputThumbsGenerator{
 		telemetry:       telemetry,
-		heifConvertPath: "heif-convert",
+		formatConverter: converter,
 	}
 }
 
@@ -40,10 +41,25 @@ func (g *LilliputThumbsGenerator) Generate(
 		meta.OrigFileRelPath,
 	)
 
-	inputFileAbsPath, inputFileLabel, err := g.prepareInputFile(ctx, meta)
+	inputFileAbsPath, inputFileLabel, cleanupInputFile, err := g.prepareInputFile(ctx, meta)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if cleanupInputFile == nil {
+			return
+		}
+
+		if err := cleanupInputFile(); err != nil {
+			slog.Warn(
+				"Failed to cleanup temporary input file",
+				"path",
+				inputFileAbsPath,
+				"error",
+				err,
+			)
+		}
+	}()
 
 	// Load original file into memory
 	inputBuf, err := g.readFile(inputFileAbsPath)
@@ -76,8 +92,7 @@ func (g *LilliputThumbsGenerator) Generate(
 	// Create a 50MB buffer to store resized image(s)
 	resizeBuffer := make([]byte, 500*1024*1024)
 
-	// Iterate meta.TargetWidths and generate a thumbnail for each width
-	for _, tgtWidth := range meta.ThumbWidths {
+	for _, targetWidth := range meta.ThumbWidths {
 		select {
 		case <-ctx.Done():
 			slog.Warn(
@@ -85,110 +100,105 @@ func (g *LilliputThumbsGenerator) Generate(
 			)
 			return ctx.Err()
 		default:
-			// Continue processing
 		}
 
-		// TODO: Find a way to reuse decoder for multiple widths
-		decoder, err := g.decode(inputFileLabel, inputBuf)
-		if err != nil {
+		if err := g.generateWidth(
+			inputFileLabel,
+			inputBuf,
+			meta,
+			targetWidth,
+			origWidth,
+			origHeight,
+			ops,
+			resizeBuffer,
+		); err != nil {
 			return err
 		}
-		defer decoder.Close()
-
-		tgtHeight := (origHeight * tgtWidth) / origWidth
-		opts := &lilliput.ImageOptions{
-			FileType:              ThumbsExtension,
-			Width:                 tgtWidth,
-			Height:                tgtHeight,
-			ResizeMethod:          lilliput.ImageOpsFit,
-			NormalizeOrientation:  true,
-			EncodeOptions:         encodeOptionsByExtension(ThumbsExtension),
-			DisableAnimatedOutput: true,
-			EncodeTimeout:         5 * time.Second,
-		}
-
-		// Create thumbnail
-		resizedImgBuf, err := ops.Transform(decoder, opts, resizeBuffer)
-		if err != nil {
-			return fmt.Errorf(
-				"failed to create thumbnail for %s: %w",
-				inputFileLabel,
-				err,
-			)
-		}
-
-		thumbFileAbsPath := mkThumbFileAbsPath(meta, tgtWidth, ThumbsExtension)
-
-		// Save thumbnail to file
-		if err := os.WriteFile(thumbFileAbsPath, resizedImgBuf, 0644); err != nil {
-			return fmt.Errorf(
-				"failed to write thumbnail file %s: %w",
-				thumbFileAbsPath,
-				err,
-			)
-		}
-
-		// Record metric to count generated thumbnail
-		g.telemetry.Metrics().Increment(metrics.ThumbCreated)
 	}
 
 	return nil
 }
 
+// prepareInputFile resolves the effective input for generation.
+// HEIC files are converted into a temporary JPEG with the original base name.
 func (g *LilliputThumbsGenerator) prepareInputFile(
 	ctx context.Context,
 	meta ThumbnailMeta,
-) (string, string, error) {
+) (string, string, func() error, error) {
 	origFileAbsPath := filepath.Join(meta.OrigFilesRootDir, meta.OrigFileRelPath)
 	if !isHEICFile(meta.OrigFileRelPath) {
-		return origFileAbsPath, meta.OrigFileRelPath, nil
+		return origFileAbsPath, meta.OrigFileRelPath, nil, nil
 	}
 
 	convertedFileAbsPath := mkDerivedFileAbsPath(meta, ".jpg")
-	if err := g.convertHEICToJPEG(ctx, origFileAbsPath, convertedFileAbsPath); err != nil {
-		return "", "", err
-	}
 
-	return convertedFileAbsPath, convertedFileAbsPath, nil
-}
-
-func (g *LilliputThumbsGenerator) convertHEICToJPEG(
-	ctx context.Context,
-	inputFileAbsPath string,
-	outputFileAbsPath string,
-) error {
 	slog.Debug(
 		"Converting HEIC image to JPEG before generating thumbnails",
 		"input",
-		inputFileAbsPath,
+		origFileAbsPath,
 		"output",
-		outputFileAbsPath,
+		convertedFileAbsPath,
 	)
-
-	cmd := exec.CommandContext(
+	if err := g.formatConverter.HEICToJPEG(
 		ctx,
-		g.heifConvertPath,
-		g.mkHEIFConvertArgs(inputFileAbsPath, outputFileAbsPath)...,
-	)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf(
-			"heif-convert failed for %s: %w. output: %s",
-			inputFileAbsPath,
-			err,
-			strings.TrimSpace(string(output)),
-		)
+		origFileAbsPath,
+		convertedFileAbsPath,
+	); err != nil {
+		_ = os.Remove(convertedFileAbsPath)
+		return "", "", nil, err
 	}
 
-	return nil
+	cleanup := func() error {
+		if err := os.Remove(convertedFileAbsPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+
+		return nil
+	}
+
+	return convertedFileAbsPath, convertedFileAbsPath, cleanup, nil
 }
 
-func (g *LilliputThumbsGenerator) mkHEIFConvertArgs(
-	inputFileAbsPath string,
-	outputFileAbsPath string,
-) []string {
-	return []string{inputFileAbsPath, outputFileAbsPath}
+func (g *LilliputThumbsGenerator) generateWidth(
+	inputFileLabel string,
+	inputBuf []byte,
+	meta ThumbnailMeta,
+	targetWidth int,
+	origWidth int,
+	origHeight int,
+	ops *lilliput.ImageOps,
+	resizeBuffer []byte,
+) error {
+	decoder, err := g.decode(inputFileLabel, inputBuf)
+	if err != nil {
+		return err
+	}
+	defer decoder.Close()
+
+	targetHeight := (origHeight * targetWidth) / origWidth
+	opts := &lilliput.ImageOptions{
+		FileType:              ThumbsExtension,
+		Width:                 targetWidth,
+		Height:                targetHeight,
+		ResizeMethod:          lilliput.ImageOpsFit,
+		NormalizeOrientation:  true,
+		EncodeOptions:         encodeOptionsByExtension(ThumbsExtension),
+		DisableAnimatedOutput: true,
+		EncodeTimeout:         5 * time.Second,
+	}
+
+	resizedImgBuf, err := ops.Transform(decoder, opts, resizeBuffer)
+	if err != nil {
+		return fmt.Errorf("failed to create thumbnail for %s: %w", inputFileLabel, err)
+	}
+
+	thumbFileAbsPath := mkThumbFileAbsPath(meta, targetWidth, ThumbsExtension)
+	if err := os.WriteFile(thumbFileAbsPath, resizedImgBuf, 0644); err != nil {
+		return fmt.Errorf("failed to write thumbnail file %s: %w", thumbFileAbsPath, err)
+	}
+
+	g.telemetry.Metrics().Increment(metrics.ThumbCreated)
+	return nil
 }
 
 func encodeOptionsByExtension(extension string) map[int]int {

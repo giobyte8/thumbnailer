@@ -7,11 +7,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"testing"
 
 	"github.com/giobyte8/thumbnailer/internal/telemetry"
+	formatconverter "github.com/giobyte8/thumbnailer/internal/thumbs_gen/format_converter"
 	_ "golang.org/x/image/webp"
 )
 
@@ -26,7 +26,10 @@ func TestLilliputGenerate_CreatesExpectedThumbnails(t *testing.T) {
 		_ = telemetrySvc.Shutdown(context.Background())
 	})
 
-	generator := NewLilliputThumbsGenerator(telemetrySvc)
+	generator := NewLilliputThumbsGenerator(
+		telemetrySvc,
+		formatconverter.NewHeifConvertFormatConverter(),
+	)
 
 	fixturePath := fixtureImagePath(t, "sample.png")
 	workDir := t.TempDir()
@@ -82,7 +85,10 @@ func TestLilliputGenerate_HEIC_CreatesExpectedThumbnails(t *testing.T) {
 		_ = telemetrySvc.Shutdown(context.Background())
 	})
 
-	generator := NewLilliputThumbsGenerator(telemetrySvc)
+	generator := NewLilliputThumbsGenerator(
+		telemetrySvc,
+		formatconverter.NewHeifConvertFormatConverter(),
+	)
 
 	fixturePath := fixtureImagePath(t, "sample.heic")
 	workDir := t.TempDir()
@@ -120,6 +126,10 @@ func TestLilliputGenerate_HEIC_CreatesExpectedThumbnails(t *testing.T) {
 
 	assertThumbnailWidth(t, filepath.Join(thumbsDir, "sample_16px.webp"), 16)
 	assertThumbnailWidth(t, filepath.Join(thumbsDir, "sample_32px.webp"), 32)
+
+	if _, err := os.Stat(filepath.Join(thumbsDir, "sample.jpg")); !os.IsNotExist(err) {
+		t.Fatalf("expected intermediary converted file to be removed, stat error: %v", err)
+	}
 }
 
 func fixtureImagePath(t *testing.T, filename string) string {
@@ -179,15 +189,5 @@ func TestIsHEICFile(t *testing.T) {
 				t.Fatalf("unexpected HEIC detection for %q: got %v want %v", tt.filePath, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestMkHEIFConvertArgs(t *testing.T) {
-	generator := &LilliputThumbsGenerator{}
-
-	got := generator.mkHEIFConvertArgs("/tmp/input.heic", "/tmp/output.jpg")
-	want := []string{"/tmp/input.heic", "/tmp/output.jpg"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("unexpected heif-convert args: got %v want %v", got, want)
 	}
 }

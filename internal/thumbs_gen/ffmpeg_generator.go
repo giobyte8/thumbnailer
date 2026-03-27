@@ -3,27 +3,26 @@ package thumbsgen
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"os/exec"
+	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
-	"github.com/giobyte8/thumbnailer/internal/telemetry"
-	"github.com/giobyte8/thumbnailer/internal/telemetry/metrics"
+	frameextractor "github.com/giobyte8/thumbnailer/internal/thumbs_gen/frame_extractor"
 )
 
 type FFmpegThumbsGenerator struct {
-	telemetry  *telemetry.TelemetrySvc
-	ffmpegPath string
+	frameExtractor frameextractor.VideoFrameExtractor
+	imageGenerator ThumbsGenerator
 }
 
+// NewFFmpegThumbsGenerator builds a video thumbnail generator with explicit dependencies.
 func NewFFmpegThumbsGenerator(
-	telemetry *telemetry.TelemetrySvc,
+	frameExtractor frameextractor.VideoFrameExtractor,
+	imageGenerator ThumbsGenerator,
 ) *FFmpegThumbsGenerator {
 	return &FFmpegThumbsGenerator{
-		telemetry:  telemetry,
-		ffmpegPath: "ffmpeg",
+		frameExtractor: frameExtractor,
+		imageGenerator: imageGenerator,
 	}
 }
 
@@ -39,62 +38,31 @@ func (g *FFmpegThumbsGenerator) Generate(
 	}
 
 	origFileAbsPath := filepath.Join(meta.OrigFilesRootDir, meta.OrigFileRelPath)
+	frameAbsPath := mkDerivedFileAbsPath(meta, ".jpg")
+	defer func() {
+		_ = os.Remove(frameAbsPath)
+	}()
 
-	for _, tgtWidth := range meta.ThumbWidths {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		thumbFileAbsPath := mkThumbFileAbsPath(meta, tgtWidth, ThumbsExtension)
-		cmd := exec.CommandContext(
-			ctx,
-			g.ffmpegPath,
-			g.mkFFmpegArgs(origFileAbsPath, thumbFileAbsPath, tgtWidth)...,
+	if err := g.frameExtractor.Extract(ctx, origFileAbsPath, frameAbsPath); err != nil {
+		return fmt.Errorf(
+			"failed to extract frame from video %s: %w",
+			meta.OrigFileRelPath,
+			err,
 		)
+	}
 
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf(
-				"ffmpeg thumbnail generation failed for %s (%dpx): %w. output: %s",
-				meta.OrigFileRelPath,
-				tgtWidth,
-				err,
-				strings.TrimSpace(string(output)),
-			)
-		}
-
-		slog.Debug(
-			"FFmpeg thumbnail created",
-			"path",
-			thumbFileAbsPath,
-			"width",
-			tgtWidth,
+	frameMeta := meta
+	frameMeta.OrigFilesRootDir = meta.ThumbFileAbsDir
+	frameMeta.OrigFileRelPath = filepath.Base(frameAbsPath)
+	if err := g.imageGenerator.Generate(ctx, frameMeta); err != nil {
+		return fmt.Errorf(
+			"failed to generate video thumbnails from extracted frame for %s: %w",
+			meta.OrigFileRelPath,
+			err,
 		)
-
-		if g.telemetry != nil {
-			g.telemetry.Metrics().Increment(metrics.ThumbCreated)
-		}
 	}
 
 	return nil
-}
-
-func (g *FFmpegThumbsGenerator) mkFFmpegArgs(
-	inputFileAbsPath string,
-	outputFileAbsPath string,
-	width int,
-) []string {
-	return []string{
-		"-y",
-		"-ss", "00:00:01",
-		"-i", inputFileAbsPath,
-		"-frames:v", "1",
-		"-vf", fmt.Sprintf("scale='min(%d,iw)':-2", width),
-		"-q:v", strconv.Itoa(ThumbsQuality),
-		outputFileAbsPath,
-	}
 }
 
 func isFFmpegSupported(filePath string) bool {

@@ -12,6 +12,7 @@ type RoutedThumbsGenerator struct {
 	routes map[string]ThumbsGenerator
 }
 
+// NewRoutedThumbsGenerator builds an extension-based generator dispatcher.
 func NewRoutedThumbsGenerator(routes map[string]ThumbsGenerator) *RoutedThumbsGenerator {
 	normalized := make(map[string]ThumbsGenerator, len(routes))
 	for extension, generator := range routes {
@@ -21,6 +22,7 @@ func NewRoutedThumbsGenerator(routes map[string]ThumbsGenerator) *RoutedThumbsGe
 	return &RoutedThumbsGenerator{routes: normalized}
 }
 
+// NewDefaultRoutedThumbsGenerator configures default routes for video and image inputs.
 func NewDefaultRoutedThumbsGenerator(
 	ffmpegGenerator ThumbsGenerator,
 	lilliputGenerator ThumbsGenerator,
@@ -35,6 +37,7 @@ func NewDefaultRoutedThumbsGenerator(
 	})
 }
 
+// Generate dispatches thumbnail generation by original file extension.
 func (g *RoutedThumbsGenerator) Generate(
 	ctx context.Context,
 	meta ThumbnailMeta,
