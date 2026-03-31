@@ -3,13 +3,11 @@ module github.com/giobyte8/thumbnailer
 go 1.24
 
 require (
-	github.com/joho/godotenv v1.5.1
-	github.com/rabbitmq/amqp091-go v1.8.1
-)
-
-require (
 	github.com/discord/lilliput v1.5.0
 	github.com/google/uuid v1.6.0
+	github.com/h2non/filetype v1.1.3
+	github.com/joho/godotenv v1.5.1
+	github.com/rabbitmq/amqp091-go v1.8.1
 	go.opentelemetry.io/otel v1.37.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.37.0
 	go.opentelemetry.io/otel/metric v1.37.0
