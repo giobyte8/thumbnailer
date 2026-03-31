@@ -6,8 +6,10 @@ Thumbnails generator for image and video files.
 
 The Thumbnailer service listens for 'thumbnail requests' from a RabbitMQ queue,
 processes the requests to generate thumbnails, and stores the thumbnails in
-the output directory. It is designed to be modular and extensible, with clear
-abstractions for message consumption and thumbnail generation.
+the output directory.
+
+It is designed to be modular and extensible, with clear abstractions for
+message consumption and thumbnail generation.
 
 ## How It Works
 
