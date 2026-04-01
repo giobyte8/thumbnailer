@@ -15,7 +15,8 @@ go mod tidy
 ```
 
 - `ffmpeg` is needed when generating thumbnails from `.mp4` and `.mov` videos.
-- `libheif` provides `heif-convert`, used to convert `.heic` images into `.jpg` before resizing them.
+- `libheif` provides `heif-convert`, used to convert `.heic` images into `.jpg`
+   before resizing them. Use `heif-convert --help` to see available options.
 
 ## Running tests
 To run all project tests, use:
