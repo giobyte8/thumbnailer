@@ -8,14 +8,22 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/giobyte8/thumbnailer/internal/telemetry"
+	"github.com/giobyte8/thumbnailer/internal/telemetry/metrics"
 )
 
 type FormatConverter struct {
+	telemetry      *telemetry.TelemetrySvc
 	formatDetector *FormatDetector
 }
 
-func NewFormatConverter(formatDetector *FormatDetector) *FormatConverter {
+func NewFormatConverter(
+	telemetrySvc *telemetry.TelemetrySvc,
+	formatDetector *FormatDetector,
+) *FormatConverter {
 	return &FormatConverter{
+		telemetry:      telemetrySvc,
 		formatDetector: formatDetector,
 	}
 }
@@ -71,6 +79,7 @@ func (c *FormatConverter) ConvertWithoutFormatsCheck(
 		)
 	}
 
+	c.telemetry.Metrics().Increment(metrics.FormatConverted)
 	return nil
 }
 

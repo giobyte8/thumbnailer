@@ -10,14 +10,21 @@ import (
 	"strings"
 
 	"github.com/giobyte8/thumbnailer/internal/format"
+	"github.com/giobyte8/thumbnailer/internal/telemetry"
+	"github.com/giobyte8/thumbnailer/internal/telemetry/metrics"
 )
 
 type Extractor struct {
+	telemetry      *telemetry.TelemetrySvc
 	formatDetector *format.FormatDetector
 }
 
-func NewFrameExtractor(formatDetector *format.FormatDetector) *Extractor {
+func NewFrameExtractor(
+	telemetrySvc *telemetry.TelemetrySvc,
+	formatDetector *format.FormatDetector,
+) *Extractor {
 	return &Extractor{
+		telemetry:      telemetrySvc,
 		formatDetector: formatDetector,
 	}
 }
@@ -67,6 +74,7 @@ func (e *Extractor) ExtractWithoutFormatsCheck(
 		)
 	}
 
+	e.telemetry.Metrics().Increment(metrics.VideoFrameExtracted)
 	return nil
 }
 

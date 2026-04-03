@@ -195,7 +195,7 @@ func (g *ImageThumbsGenerator) generateThumb(
 		imgOps = lilliput.NewImageOps(maxDimension)
 		defer imgOps.Close()
 
-		// TODO Increase metric for lilliput_dedicated_imageops_created
+		g.telemetry.Metrics().Increment(metrics.LPDedicatedImageOpsCreated)
 	}
 
 	decoder, err := g.decode(origFileBytes)
@@ -220,9 +220,8 @@ func (g *ImageThumbsGenerator) generateThumb(
 	resizedImgBuf, err := imgOps.Transform(decoder, imgOpts, g.resizeBuffer)
 	if err != nil {
 		if errors.Is(err, lilliput.ErrBufTooSmall) {
-			// TODO User metric name reference
 			g.telemetry.Metrics().Increment(
-				metrics.MetricName("lilliput_error_output_buffer_too_small"),
+				metrics.LPErrOutputBufferTooSmall,
 			)
 		}
 

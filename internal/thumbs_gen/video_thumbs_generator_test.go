@@ -127,10 +127,10 @@ func mkVideoGenerator(t *testing.T) *VideoThumbsGenerator {
 	})
 
 	fmtDetector := format.NewFormatDetector()
-	frameExtractor := frameextractor.NewFrameExtractor(fmtDetector)
+	frameExtractor := frameextractor.NewFrameExtractor(telemetrySvc, fmtDetector)
 	imageGenerator := NewImageThumbsGenerator(
 		telemetrySvc,
-		format.NewFormatConverter(fmtDetector),
+		format.NewFormatConverter(telemetrySvc, fmtDetector),
 		fmtDetector,
 	)
 

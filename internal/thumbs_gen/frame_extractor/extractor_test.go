@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/giobyte8/thumbnailer/internal/format"
+	"github.com/giobyte8/thumbnailer/internal/telemetry"
 	"github.com/giobyte8/thumbnailer/internal/testutils"
 )
 
@@ -35,7 +36,7 @@ func TestExtractor_UnsupportedCases(t *testing.T) {
 		},
 	}
 
-	extractor := NewFrameExtractor(format.NewFormatDetector())
+	extractor := NewFrameExtractor(mkTestTelemetrySvc(t), format.NewFormatDetector())
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -78,7 +79,7 @@ func TestExtractor_Integration_SupportedCases(t *testing.T) {
 		},
 	}
 
-	extractor := NewFrameExtractor(format.NewFormatDetector())
+	extractor := NewFrameExtractor(mkTestTelemetrySvc(t), format.NewFormatDetector())
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -119,4 +120,20 @@ func TestExtractor_Integration_SupportedCases(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mkTestTelemetrySvc(t *testing.T) *telemetry.TelemetrySvc {
+	t.Helper()
+	t.Setenv("OTEL_ENABLED", "false")
+
+	telemetrySvc, err := telemetry.NewTelemetrySvc(context.Background())
+	if err != nil {
+		t.Fatalf("failed to init telemetry service: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = telemetrySvc.Shutdown(context.Background())
+	})
+
+	return telemetrySvc
 }

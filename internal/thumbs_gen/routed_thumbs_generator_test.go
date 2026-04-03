@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/giobyte8/thumbnailer/internal/format"
+	"github.com/giobyte8/thumbnailer/internal/telemetry"
 	"github.com/giobyte8/thumbnailer/internal/testutils"
 )
 
@@ -38,7 +39,16 @@ func (g *recordingThumbsGenerator) GenerateWithoutFormatsCheck(
 }
 
 func TestNewRoutedThumbsGenerator_DefaultRoutes(t *testing.T) {
-	generator := NewRoutedThumbsGenerator(nil)
+	t.Setenv("OTEL_ENABLED", "false")
+	telemetrySvc, err := telemetry.NewTelemetrySvc(context.Background())
+	if err != nil {
+		t.Fatalf("failed to init telemetry service: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = telemetrySvc.Shutdown(context.Background())
+	})
+
+	generator := NewRoutedThumbsGenerator(telemetrySvc)
 
 	if generator.routes[format.JPEG] == nil {
 		t.Fatalf("expected JPEG route to be configured")

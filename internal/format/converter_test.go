@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/giobyte8/thumbnailer/internal/telemetry"
 	"github.com/giobyte8/thumbnailer/internal/testutils"
 )
 
@@ -42,7 +43,7 @@ func TestConverter_UnsupportedCases(t *testing.T) {
 		},
 	}
 
-	converter := NewFormatConverter(NewFormatDetector())
+	converter := NewFormatConverter(mkTestTelemetrySvc(t), NewFormatDetector())
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -67,7 +68,7 @@ func TestConverter_Integration_SupportedCase(t *testing.T) {
 	format := JPEG
 
 	// Convert test image to JPEG
-	converter := NewFormatConverter(NewFormatDetector())
+	converter := NewFormatConverter(mkTestTelemetrySvc(t), NewFormatDetector())
 	err := converter.Convert(context.Background(), srcPath, dstPath, format)
 	if err != nil {
 		t.Fatalf(
@@ -87,4 +88,20 @@ func TestConverter_Integration_SupportedCase(t *testing.T) {
 	if fileInfo.Size() <= 0 {
 		t.Fatalf("expected non-empty output file")
 	}
+}
+
+func mkTestTelemetrySvc(t *testing.T) *telemetry.TelemetrySvc {
+	t.Helper()
+	t.Setenv("OTEL_ENABLED", "false")
+
+	telemetrySvc, err := telemetry.NewTelemetrySvc(context.Background())
+	if err != nil {
+		t.Fatalf("failed to init telemetry service: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = telemetrySvc.Shutdown(context.Background())
+	})
+
+	return telemetrySvc
 }

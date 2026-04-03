@@ -133,7 +133,7 @@ func mkGenerator(t *testing.T) *ImageThumbsGenerator {
 	fmtDetector := format.NewFormatDetector()
 	return NewImageThumbsGenerator(
 		telemetrySvc,
-		format.NewFormatConverter(fmtDetector),
+		format.NewFormatConverter(telemetrySvc, fmtDetector),
 		fmtDetector,
 	)
 }

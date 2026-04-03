@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/giobyte8/thumbnailer/internal/format"
 	"github.com/giobyte8/thumbnailer/internal/telemetry"
+	"github.com/giobyte8/thumbnailer/internal/telemetry/metrics"
 	frameextractor "github.com/giobyte8/thumbnailer/internal/thumbs_gen/frame_extractor"
 )
 
 type RoutedThumbsGenerator struct {
+	telemetry      *telemetry.TelemetrySvc
 	formatDetector *format.FormatDetector
 	routes         map[format.Format]ThumbsGenerator
 }
@@ -19,8 +22,12 @@ func NewRoutedThumbsGenerator(
 	telemetryService *telemetry.TelemetrySvc,
 ) *RoutedThumbsGenerator {
 	formatDetector := format.NewFormatDetector()
-	formatConverter := format.NewFormatConverter(formatDetector)
-	frameExtractor := frameextractor.NewFrameExtractor(formatDetector)
+	formatConverter := format.NewFormatConverter(
+		telemetryService,
+		formatDetector)
+	frameExtractor := frameextractor.NewFrameExtractor(
+		telemetryService,
+		formatDetector)
 
 	imageThumbsGenerator := NewImageThumbsGenerator(
 		telemetryService,
@@ -45,6 +52,7 @@ func NewRoutedThumbsGenerator(
 	}
 
 	return &RoutedThumbsGenerator{
+		telemetry:      telemetryService,
 		formatDetector: formatDetector,
 		routes:         routes,
 	}
@@ -78,14 +86,29 @@ func (g *RoutedThumbsGenerator) GenerateWithoutFormatsCheck(
 	generator, found := g.routes[origFileFormat]
 	if !found {
 		slog.Warn(
-			"Discarding unsupported file format for thumbnail generation",
-			"filePath",
-			meta.OrigFileRelPath,
-			"format",
-			origFileFormat,
+			"Unsupported original file format",
+			"filePath", meta.OrigFileRelPath,
+			"format", origFileFormat,
+		)
+
+		g.telemetry.Metrics().IncrementWAttrs(
+			metrics.ThumbReqGenRouted,
+			map[string]string{
+				"orig_file_format":    string(origFileFormat),
+				"generate_successful": strconv.FormatBool(false),
+			},
 		)
 		return nil
 	}
 
-	return generator.GenerateWithoutFormatsCheck(ctx, meta, origFileFormat)
+	err := generator.GenerateWithoutFormatsCheck(ctx, meta, origFileFormat)
+	g.telemetry.Metrics().IncrementWAttrs(
+		metrics.ThumbReqGenRouted,
+		map[string]string{
+			"orig_file_format":    string(origFileFormat),
+			"generate_successful": strconv.FormatBool(err == nil),
+		},
+	)
+
+	return err
 }
