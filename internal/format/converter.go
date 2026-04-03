@@ -20,6 +20,12 @@ func NewFormatConverter(formatDetector *FormatDetector) *FormatConverter {
 	}
 }
 
+// Convert converts the file at 'srcAbsPath' to the specified 'dstFormat'
+// and saves it at 'dstAbsPath'.
+//
+// Note: this method checks if the formats of source and destination files are
+// supported before performing the conversion. Use ConvertWithoutFormatsCheck
+// if you want to skip such checks.
 func (c *FormatConverter) Convert(
 	ctx context.Context,
 	srcAbsPath string,
@@ -30,6 +36,21 @@ func (c *FormatConverter) Convert(
 	if err != nil {
 		return fmt.Errorf("conversion not supported: %w", err)
 	}
+
+	return c.ConvertWithoutFormatsCheck(ctx, srcAbsPath, dstAbsPath, dstFormat)
+}
+
+// ConvertWithoutFormatsCheck performs the format conversion without
+// checking for supported formats in origin and destination files.
+//
+// Use this for high throughput scenarios where formats were
+// already checked by the caller
+func (c *FormatConverter) ConvertWithoutFormatsCheck(
+	ctx context.Context,
+	srcAbsPath string,
+	dstAbsPath string,
+	dstFormat Format,
+) error {
 
 	// Prepare 'heif-convert' command to do the conversion
 	//   Use 'heif-convert --help' for usage information

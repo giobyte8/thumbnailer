@@ -35,7 +35,7 @@ func TestMkDerivedFileAbsPath(t *testing.T) {
 		ThumbFileAbsDir: filepath.Join("/tmp", "thumbs", "nested", "folder"),
 	}
 
-	got := mkDerivedFileAbsPath(meta, ".jpg")
+	got := mkIntermediaryThumbFileAbsPath(meta, ".jpg")
 	want := filepath.Join("/tmp", "thumbs", "nested", "folder", "sample.jpg")
 	if got != want {
 		t.Fatalf("unexpected derived file path: got %q want %q", got, want)

@@ -2,6 +2,8 @@ package thumbsgen
 
 import (
 	"context"
+
+	"github.com/giobyte8/thumbnailer/internal/format"
 )
 
 const ThumbsExtension = ".webp"
@@ -30,5 +32,26 @@ type ThumbnailMeta struct {
 }
 
 type ThumbsGenerator interface {
+	// Generate generates thumbnails for the original file specified in meta.
+	//
+	// This method checks if the format of the original file is supported
+	// before performing the generation. Use GenerateWithoutFormatsCheck if
+	// you need to skip such checks.
 	Generate(ctx context.Context, meta ThumbnailMeta) error
+
+	// GenerateWithoutFormatsCheck generates thumbnails without checking
+	// whether the format of the original file is supported.
+	//
+	// Useful for high-throughput scenarios where the caller has already
+	// validated the format, avoiding extra reads of file header bytes.
+	GenerateWithoutFormatsCheck(
+		ctx context.Context,
+		meta ThumbnailMeta,
+		origFileFormat format.Format,
+	) error
+}
+
+type ImgDimensions struct {
+	Width  int
+	Height int
 }

@@ -16,8 +16,6 @@ import (
 
 	"github.com/giobyte8/thumbnailer/internal/telemetry"
 	thumbsgen "github.com/giobyte8/thumbnailer/internal/thumbs_gen"
-	formatconverter "github.com/giobyte8/thumbnailer/internal/thumbs_gen/format_converter"
-	frameextractor "github.com/giobyte8/thumbnailer/internal/thumbs_gen/frame_extractor"
 )
 
 func setupLogging() {
@@ -152,20 +150,7 @@ func prepareThumbsService(telemetry *telemetry.TelemetrySvc) *services.Thumbnail
 		)
 	}
 
-	imageFormatConverter := formatconverter.NewHeifConvertFormatConverter()
-	lilliputGenerator := thumbsgen.NewLilliputThumbsGenerator(
-		telemetry,
-		imageFormatConverter,
-	)
-	videoFrameExtractor := frameextractor.NewFFmpegFrameExtractor()
-	ffmpegGenerator := thumbsgen.NewFFmpegThumbsGenerator(
-		videoFrameExtractor,
-		lilliputGenerator,
-	)
-	thumbsGenerator := thumbsgen.NewDefaultRoutedThumbsGenerator(
-		ffmpegGenerator,
-		lilliputGenerator,
-	)
+	thumbsGenerator := thumbsgen.NewRoutedThumbsGenerator(telemetry)
 	return services.NewThumbnailsService(thumbsConfig, thumbsGenerator)
 }
 

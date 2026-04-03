@@ -15,6 +15,10 @@ func GetRootDir() string {
 	return filepath.Join(filepath.Dir(b), "../..")
 }
 
+func TestFilesDir() string {
+	return filepath.Join(GetRootDir(), "testdata")
+}
+
 // TestFilePath constructs the absolute path to a test file
 // located in the "testdata" directory in the root of the project.
 func TestFilePath(filename string) string {
