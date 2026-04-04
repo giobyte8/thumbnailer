@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/giobyte8/thumbnailer/internal/format"
 	"github.com/giobyte8/thumbnailer/internal/telemetry"
@@ -58,6 +59,7 @@ func (e *Extractor) ExtractWithoutFormatsCheck(
 	fromAbsPath string,
 	intoAbsPath string,
 ) error {
+	startTime := time.Now()
 
 	cmd := e.makeFFmpegCommand(ctx, fromAbsPath, intoAbsPath)
 	output, err := cmd.CombinedOutput()
@@ -74,6 +76,9 @@ func (e *Extractor) ExtractWithoutFormatsCheck(
 		)
 	}
 
+	e.telemetry.Metrics().Duration(
+		metrics.VideoFrameExtractDuration,
+		time.Since(startTime))
 	e.telemetry.Metrics().Increment(metrics.VideoFrameExtracted)
 	return nil
 }

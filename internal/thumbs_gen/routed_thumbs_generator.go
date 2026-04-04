@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"time"
 
 	"github.com/giobyte8/thumbnailer/internal/format"
 	"github.com/giobyte8/thumbnailer/internal/telemetry"
@@ -101,7 +102,9 @@ func (g *RoutedThumbsGenerator) GenerateWithoutFormatsCheck(
 		return nil
 	}
 
+	startTime := time.Now()
 	err := generator.GenerateWithoutFormatsCheck(ctx, meta, origFileFormat)
+
 	g.telemetry.Metrics().IncrementWAttrs(
 		metrics.ThumbReqGenRouted,
 		map[string]string{
@@ -109,6 +112,15 @@ func (g *RoutedThumbsGenerator) GenerateWithoutFormatsCheck(
 			"generate_successful": strconv.FormatBool(err == nil),
 		},
 	)
+	if err == nil {
+		g.telemetry.Metrics().DurationWAttrs(
+			metrics.ThumbGenerateDuration,
+			time.Since(startTime),
+			map[string]string{
+				"orig_file_format": string(origFileFormat),
+			},
+		)
+	}
 
 	return err
 }

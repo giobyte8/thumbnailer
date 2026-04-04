@@ -186,7 +186,7 @@ func (c *AMQPConsumer) consumeThumbsGenRequests(ctx context.Context) {
 		select {
 		case msg, ok := <-msgs:
 			if !ok {
-				slog.Info(
+				slog.Debug(
 					"AMQP - Thumbs gen message channel closed. goroutine exiting",
 				)
 				return
@@ -277,7 +277,7 @@ func (c *AMQPConsumer) consumeThumbsDelRequests(ctx context.Context) {
 		select {
 		case msg, ok := <-msgs:
 			if !ok {
-				slog.Info(
+				slog.Debug(
 					"AMQP - Thumbs del message channel closed. goroutine exiting",
 				)
 				return

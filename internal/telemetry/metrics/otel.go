@@ -41,7 +41,9 @@ type otelCounters struct {
 
 type otelHistograms struct {
 	thumbGenerateDurationHistogram     metric.Int64Histogram
+	lilptThumbGenDurationHistogram     metric.Int64Histogram
 	videoFrameExtractDurationHistogram metric.Int64Histogram
+	formatConvertDurationHistogram     metric.Int64Histogram
 }
 
 var serviceName = semconv.ServiceNameKey.String("thumbnailer")
@@ -176,6 +178,16 @@ func initHistograms(meter metric.Meter) (*otelHistograms, error) {
 		return nil, err
 	}
 
+	lilptThumbGenDurationHistogram, err := meter.Int64Histogram(
+		string(LilptThumbGenDuration),
+		metric.WithDescription(
+			"Duration of thumbnail generation performed by Lilliput"),
+		metric.WithUnit("ms"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	videoFrameExtractDurationHistogram, err := meter.Int64Histogram(
 		string(VideoFrameExtractDuration),
 		metric.WithDescription(
@@ -186,9 +198,21 @@ func initHistograms(meter metric.Meter) (*otelHistograms, error) {
 		return nil, err
 	}
 
+	formatConvertDurationHistogram, err := meter.Int64Histogram(
+		string(FormatConvertDuration),
+		metric.WithDescription(
+			"Duration of format conversion operations"),
+		metric.WithUnit("ms"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &otelHistograms{
 		thumbGenerateDurationHistogram:     thumbGenerateDurationHistogram,
+		lilptThumbGenDurationHistogram:     lilptThumbGenDurationHistogram,
 		videoFrameExtractDurationHistogram: videoFrameExtractDurationHistogram,
+		formatConvertDurationHistogram:     formatConvertDurationHistogram,
 	}, nil
 }
 
@@ -232,17 +256,67 @@ func (s *OtelMetricsSvc) Duration(
 	metricName MetricName,
 	duration time.Duration,
 ) {
+	s.DurationWAttrs(metricName, duration, nil)
+}
+
+func (s *OtelMetricsSvc) DurationWAttrs(
+	metricName MetricName,
+	duration time.Duration,
+	attrs map[string]string,
+) {
+	durationMs := duration.Milliseconds()
+
 	ctx := context.Background()
-	valueMs := duration.Milliseconds()
+	opts := metric.WithAttributeSet(toAttributeSet(attrs))
 
 	switch metricName {
 	case ThumbGenerateDuration:
-		s.histograms.thumbGenerateDurationHistogram.Record(ctx, valueMs)
+		s.histograms.thumbGenerateDurationHistogram.Record(
+			ctx,
+			durationMs,
+			opts,
+		)
+	case LilptThumbGenDuration:
+		s.histograms.lilptThumbGenDurationHistogram.Record(
+			ctx,
+			durationMs,
+			opts,
+		)
 	case VideoFrameExtractDuration:
-		s.histograms.videoFrameExtractDurationHistogram.Record(ctx, valueMs)
+		s.histograms.videoFrameExtractDurationHistogram.Record(
+			ctx,
+			durationMs,
+			opts,
+		)
+	case FormatConvertDuration:
+		s.histograms.formatConvertDurationHistogram.Record(
+			ctx,
+			durationMs,
+			opts,
+		)
 
 	default:
 		slog.Warn("Unknown duration metric name", "metricName", metricName)
+	}
+}
+
+// DeferredDuration implements MetricsSvc.
+func (s *OtelMetricsSvc) DeferredDuration(metric MetricName) func() {
+	return s.DeferredDurationWAttrs(metric, nil)
+}
+
+// DeferredDurationWAttrs implements MetricsSvc.
+func (s *OtelMetricsSvc) DeferredDurationWAttrs(
+	metric MetricName,
+	attrs map[string]string,
+) func() {
+	start := time.Now()
+
+	// Code inside 'func()' will be executed until the caller defers it,
+	// allowing us to measure the duration of the operation.
+	return func() {
+		duration := time.Since(start)
+		s.DurationWAttrs(metric, duration, attrs)
 	}
 }
 

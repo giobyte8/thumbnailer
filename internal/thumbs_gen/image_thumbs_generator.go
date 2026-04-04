@@ -113,6 +113,7 @@ func (g *ImageThumbsGenerator) GenerateWithoutFormatsCheck(
 		meta.OrigFileRelPath = filepath.Base(intermediaryFileAbsPath)
 	}
 
+	startTime := time.Now()
 	origFileAbsPath := mkOriginalFileAbsPath(meta)
 
 	// Load original file into memory
@@ -150,6 +151,10 @@ func (g *ImageThumbsGenerator) GenerateWithoutFormatsCheck(
 		}
 	}
 
+	g.telemetry.Metrics().Duration(
+		metrics.LilptThumbGenDuration,
+		time.Since(startTime),
+	)
 	return nil
 }
 

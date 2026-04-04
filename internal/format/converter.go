@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/giobyte8/thumbnailer/internal/telemetry"
 	"github.com/giobyte8/thumbnailer/internal/telemetry/metrics"
@@ -59,6 +60,7 @@ func (c *FormatConverter) ConvertWithoutFormatsCheck(
 	dstAbsPath string,
 	dstFormat Format,
 ) error {
+	startTime := time.Now()
 
 	// Prepare 'heif-convert' command to do the conversion
 	//   Use 'heif-convert --help' for usage information
@@ -79,6 +81,9 @@ func (c *FormatConverter) ConvertWithoutFormatsCheck(
 		)
 	}
 
+	c.telemetry.Metrics().Duration(
+		metrics.FormatConvertDuration,
+		time.Since(startTime))
 	c.telemetry.Metrics().Increment(metrics.FormatConverted)
 	return nil
 }
