@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"time"
 )
 
 type NoopMetricsSvc struct{}
@@ -17,6 +18,10 @@ func (n *NoopMetricsSvc) Increment(metric MetricName) {
 func (n *NoopMetricsSvc) IncrementWAttrs(
 	metric MetricName,
 	attrs map[string]string) {
+	// No operation performed
+}
+
+func (n *NoopMetricsSvc) Duration(metric MetricName, duration time.Duration) {
 	// No operation performed
 }
 

@@ -20,6 +20,13 @@ import (
 )
 
 type OtelMetricsSvc struct {
+	counters   otelCounters
+	histograms otelHistograms
+
+	shutDownFuncs []func(ctx context.Context) error
+}
+
+type otelCounters struct {
 	thumbReqGenReceivedCounter metric.Int64Counter
 	thumbReqGenRoutedCounter   metric.Int64Counter
 	thumbReqDelReceivedCounter metric.Int64Counter
@@ -30,8 +37,11 @@ type OtelMetricsSvc struct {
 
 	lpDedicatedImageOpsCreatedCounter metric.Int64Counter
 	lpErrOutputBufferTooSmallCounter  metric.Int64Counter
+}
 
-	shutDownFuncs []func(ctx context.Context) error
+type otelHistograms struct {
+	thumbGenerateDurationHistogram     metric.Int64Histogram
+	videoFrameExtractDurationHistogram metric.Int64Histogram
 }
 
 var serviceName = semconv.ServiceNameKey.String("thumbnailer")
@@ -43,10 +53,28 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 	}
 	meter := otel.Meter("thumbnailer")
 
+	counters, err := initCounters(meter)
+	if err != nil {
+		return nil, err
+	}
+
+	histograms, err := initHistograms(meter)
+	if err != nil {
+		return nil, err
+	}
+
+	return &OtelMetricsSvc{
+		counters:      *counters,
+		histograms:    *histograms,
+		shutDownFuncs: shutDownFuncs,
+	}, nil
+}
+
+func initCounters(meter metric.Meter) (*otelCounters, error) {
 	thumbReqGenReceivedCounter, err := meter.Int64Counter(
 		string(ThumbReqGenReceived),
 		metric.WithDescription(
-			"Number of received 'generate thumbnail' requests'"),
+			"Number of received 'generate thumbnail' requests"),
 		metric.WithUnit("{request}"),
 	)
 	if err != nil {
@@ -66,7 +94,7 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 	thumbReqDelReceivedCounter, err := meter.Int64Counter(
 		string(ThumbReqDelReceived),
 		metric.WithDescription(
-			"Number of received 'delete thumbnail' requests'"),
+			"Number of received 'delete thumbnail' requests"),
 		metric.WithUnit("{request}"),
 	)
 	if err != nil {
@@ -75,7 +103,8 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 
 	thumbCreatedCounter, err := meter.Int64Counter(
 		string(ThumbCreated),
-		metric.WithDescription("Number of created thumbnails"),
+		metric.WithDescription(
+			"Number of created thumbnails"),
 		metric.WithUnit("{thumbnail}"),
 	)
 	if err != nil {
@@ -122,7 +151,7 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 		return nil, err
 	}
 
-	return &OtelMetricsSvc{
+	return &otelCounters{
 		thumbReqGenReceivedCounter: thumbReqGenReceivedCounter,
 		thumbReqGenRoutedCounter:   thumbReqGenRoutedCounter,
 		thumbReqDelReceivedCounter: thumbReqDelReceivedCounter,
@@ -133,8 +162,33 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 
 		lpDedicatedImageOpsCreatedCounter: lpDedicatedImageOpsCreatedCounter,
 		lpErrOutputBufferTooSmallCounter:  lpErrOutputBufferTooSmallCounter,
+	}, nil
+}
 
-		shutDownFuncs: shutDownFuncs,
+func initHistograms(meter metric.Meter) (*otelHistograms, error) {
+	thumbGenerateDurationHistogram, err := meter.Int64Histogram(
+		string(ThumbGenerateDuration),
+		metric.WithDescription(
+			"Duration of thumbnail generation requests"),
+		metric.WithUnit("ms"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	videoFrameExtractDurationHistogram, err := meter.Int64Histogram(
+		string(VideoFrameExtractDuration),
+		metric.WithDescription(
+			"Duration of video frame extraction operations"),
+		metric.WithUnit("ms"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &otelHistograms{
+		thumbGenerateDurationHistogram:     thumbGenerateDurationHistogram,
+		videoFrameExtractDurationHistogram: videoFrameExtractDurationHistogram,
 	}, nil
 }
 
@@ -146,43 +200,63 @@ func (s *OtelMetricsSvc) IncrementWAttrs(
 	metricName MetricName,
 	attrs map[string]string,
 ) {
+	ctx := context.Background()
+	opts := metric.WithAttributeSet(toAttributeSet(attrs))
+
+	switch metricName {
+	case ThumbReqGenReceived:
+		s.counters.thumbReqGenReceivedCounter.Add(ctx, 1, opts)
+	case ThumbReqGenRouted:
+		s.counters.thumbReqGenRoutedCounter.Add(ctx, 1, opts)
+	case ThumbReqDelReceived:
+		s.counters.thumbReqDelReceivedCounter.Add(ctx, 1, opts)
+	case ThumbCreated:
+		s.counters.thumbCreatedCounter.Add(ctx, 1, opts)
+
+	case FormatConverted:
+		s.counters.formatConvertedCounter.Add(ctx, 1, opts)
+	case VideoFrameExtracted:
+		s.counters.videoFrameExtractedCounter.Add(ctx, 1, opts)
+
+	case LPDedicatedImageOpsCreated:
+		s.counters.lpDedicatedImageOpsCreatedCounter.Add(ctx, 1, opts)
+	case LPErrOutputBufferTooSmall:
+		s.counters.lpErrOutputBufferTooSmallCounter.Add(ctx, 1, opts)
+
+	default:
+		slog.Warn("Unknown metric name", "metricName", metricName)
+	}
+}
+
+func (s *OtelMetricsSvc) Duration(
+	metricName MetricName,
+	duration time.Duration,
+) {
+	ctx := context.Background()
+	valueMs := duration.Milliseconds()
+
+	switch metricName {
+	case ThumbGenerateDuration:
+		s.histograms.thumbGenerateDurationHistogram.Record(ctx, valueMs)
+	case VideoFrameExtractDuration:
+		s.histograms.videoFrameExtractDurationHistogram.Record(ctx, valueMs)
+
+	default:
+		slog.Warn("Unknown duration metric name", "metricName", metricName)
+	}
+}
+
+func toAttributeSet(attrs map[string]string) attribute.Set {
 	if attrs == nil {
 		attrs = make(map[string]string)
 	}
 
-	// Convert attrs map to OpenTelemetry attributes
 	kvAttrs := make([]attribute.KeyValue, 0, len(attrs))
 	for key, value := range attrs {
 		kvAttrs = append(kvAttrs, attribute.String(key, value))
 	}
 
-	ctx := context.Background()
-	opts := metric.WithAttributeSet(attribute.NewSet(kvAttrs...))
-
-	//slog.Debug("Increasing metric", "name", metricName, "attributes", attrs)
-	switch metricName {
-	case ThumbReqGenReceived:
-		s.thumbReqGenReceivedCounter.Add(ctx, 1, opts)
-	case ThumbReqGenRouted:
-		s.thumbReqGenRoutedCounter.Add(ctx, 1, opts)
-	case ThumbReqDelReceived:
-		s.thumbReqDelReceivedCounter.Add(ctx, 1, opts)
-	case ThumbCreated:
-		s.thumbCreatedCounter.Add(ctx, 1, opts)
-
-	case FormatConverted:
-		s.formatConvertedCounter.Add(ctx, 1, opts)
-	case VideoFrameExtracted:
-		s.videoFrameExtractedCounter.Add(ctx, 1, opts)
-
-	case LPDedicatedImageOpsCreated:
-		s.lpDedicatedImageOpsCreatedCounter.Add(ctx, 1, opts)
-	case LPErrOutputBufferTooSmall:
-		s.lpErrOutputBufferTooSmallCounter.Add(ctx, 1, opts)
-
-	default:
-		slog.Warn("Unknown metric name", "metricName", metricName)
-	}
+	return attribute.NewSet(kvAttrs...)
 }
 
 func (s *OtelMetricsSvc) Shutdown(ctx context.Context) error {
