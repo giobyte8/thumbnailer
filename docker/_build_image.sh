@@ -1,17 +1,18 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Builds and optionally pushes a new version of a docker image
 set -e
 
-# ref: https://stackoverflow.com/a/4774063/3211029
-HERE="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-APP_ROOT="$(dirname "$HERE")"
+SCRIPT_PATH="$(cd -- "$(dirname "$0")" >/dev/null 2>&1; pwd -P)"
+APP_ROOT="$(dirname "$SCRIPT_PATH")"
 
 PUSH_IMAGE=false
+SKIP_SMOKE=false
 
 function usage {
-  echo "Usage: $0 [-h] [-p] image tag dockerfile"
+  echo "Usage: $0 [-h] [-p] [-s] image tag dockerfile"
   echo "  -h              Show this help message"
-  echo "  -p              Push the image after building"
+  echo "  -p              Push the image after build"
+  echo "  -s              Skip smoke test after build"
   echo "  image           Name for the docker image"
   echo "  tag             Tag for the docker image"
   echo "  dockerfile      Path to the Dockerfile to build"
@@ -22,7 +23,7 @@ function usage {
 args=()
 while [ $OPTIND -le "$#" ]
 do
-  if getopts "hp" flag
+  if getopts "hps" flag
   then
     case $flag in
       h)
@@ -31,6 +32,9 @@ do
         ;;
       p)
         PUSH_IMAGE=true
+        ;;
+      s)
+        SKIP_SMOKE=true
         ;;
     esac
   else
@@ -68,34 +72,41 @@ if [ ! -f "$DOCKERFILE" ]; then
   exit 1
 fi
 
+IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
 
-echo "Building image: ${IMAGE_NAME}:${IMAGE_TAG}"
+echo "Building image: ${IMAGE_REF}"
 echo "    Dockerfile: ${DOCKERFILE}"
+echo "    Skip smoke: ${SKIP_SMOKE}"
 echo "    Push image: ${PUSH_IMAGE}"
 echo
 
+echo "Building local image: ${IMAGE_REF}"
+docker build          \
+  -t "${IMAGE_REF}"   \
+  -f "${DOCKERFILE}"  \
+  "${APP_ROOT}"
+
+if [ "$SKIP_SMOKE" = false ]; then
+  echo
+  echo "Running smoke check for: ${IMAGE_REF}"
+  ./image_verify.sh "$IMAGE_REF"
+fi
+
 if [ "$PUSH_IMAGE" = true ]; then
+  echo
+  echo "Publishing multi-arch image: ${IMAGE_REF}"
 
   # Multi arch build and push
   docker buildx build                   \
     --platform linux/amd64,linux/arm64  \
-    -t "${IMAGE_NAME}":"${IMAGE_TAG}"   \
+    -t "${IMAGE_REF}"   \
     -f "${DOCKERFILE}"                  \
     --push                              \
     "${APP_ROOT}"
 
   echo
-  echo "SUCCESS!"
-  echo "Image built and released to docker registry: ${IMAGE_NAME}:${IMAGE_TAG}"
+  echo "Image built and released to docker registry: ${IMAGE_REF}"
 else
-
-  # Local build (No push to container registry and no multi-arch support)
-  docker build                         \
-    -t "${IMAGE_NAME}":"${IMAGE_TAG}"  \
-    -f "${DOCKERFILE}"                 \
-    "${APP_ROOT}"
-
   echo
-  echo "SUCCESS!"
-  echo "Image built and ready for local usage: ${IMAGE_NAME}:${IMAGE_TAG}"
+  echo "Image ready for local usage: ${IMAGE_REF}"
 fi

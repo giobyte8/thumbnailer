@@ -1,10 +1,12 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Builds and optionally pushes a new version of docker image
 set -e
 
 # Scripts path
 # ref: https://stackoverflow.com/a/4774063/3211029
-HERE="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+SCRIPT_PATH="$(cd -- "$(dirname "$0")" >/dev/null 2>&1; pwd -P)"
+cd "$SCRIPT_PATH"
+
 BUILD_SCRIPT="_build_image.sh"
 DOCKERFILE="thumbnailer.dockerfile"
 

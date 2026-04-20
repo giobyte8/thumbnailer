@@ -28,15 +28,17 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o thumbnailer ./cmd/thumbnailer
 FROM debian:bookworm-slim AS runtime
 WORKDIR /opt/thumbnailer
 
-# Install the runtime dependencies for lilliput
-# We're installing the non-dev versions of the libraries
-RUN apt-get update && apt-get install -y \
+# Install runtime (non-dev) dependencies for lilliput
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libjpeg62-turbo \
     libpng16-16 \
     libtiff6 \
     libwebp7 \
     liblcms2-2 \
     libbz2-1.0 \
+    # We need 'ffmpeg' and 'heif-convert' (libheif) commands
+    ffmpeg \
+    libheif-examples \
     # Clean up to keep the final image as small as possible
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
