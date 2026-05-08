@@ -21,6 +21,8 @@ type AMQPConfig struct {
 
 	ThumbsGenQueueName string
 	ThumbsDelQueueName string
+	ThumbsGenPrefetch  int
+	ThumbsDelPrefetch  int
 }
 
 type AMQPConsumer struct {
@@ -52,6 +54,16 @@ func NewAMQPConsumer(
 	if config.ThumbsDelQueueName == "" {
 		return nil, fmt.Errorf(
 			"AMQP thumbs delete queue name cannot be empty in config",
+		)
+	}
+	if config.ThumbsGenPrefetch <= 0 {
+		return nil, fmt.Errorf(
+			"AMQP thumbs generation prefetch must be a positive integer",
+		)
+	}
+	if config.ThumbsDelPrefetch <= 0 {
+		return nil, fmt.Errorf(
+			"AMQP thumbs delete prefetch must be a positive integer",
 		)
 	}
 
@@ -164,6 +176,17 @@ func (c *AMQPConsumer) Stop() {
 }
 
 func (c *AMQPConsumer) consumeThumbsGenRequests(ctx context.Context) {
+	if err := c.channel.Qos(c.config.ThumbsGenPrefetch, 0, false); err != nil {
+		slog.Error(
+			"AMQP - Failed to set thumbs gen consumer qos",
+			"prefetch",
+			c.config.ThumbsGenPrefetch,
+			"error",
+			err,
+		)
+		return
+	}
+
 	msgs, err := c.channel.Consume(
 		c.config.ThumbsGenQueueName,
 		"thumbnailer-gen", // Consumer tag
@@ -255,6 +278,17 @@ func (c *AMQPConsumer) consumeThumbsGenRequests(ctx context.Context) {
 }
 
 func (c *AMQPConsumer) consumeThumbsDelRequests(ctx context.Context) {
+	if err := c.channel.Qos(c.config.ThumbsDelPrefetch, 0, false); err != nil {
+		slog.Error(
+			"AMQP - Failed to set thumbs del consumer qos",
+			"prefetch",
+			c.config.ThumbsDelPrefetch,
+			"error",
+			err,
+		)
+		return
+	}
+
 	msgs, err := c.channel.Consume(
 		c.config.ThumbsDelQueueName,
 		"thumbnailer-del", // Consumer tag
