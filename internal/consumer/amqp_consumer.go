@@ -21,6 +21,8 @@ type AMQPConfig struct {
 
 	ThumbsGenQueueName string
 	ThumbsDelQueueName string
+	ThumbsGenPrefetch  int
+	ThumbsDelPrefetch  int
 }
 
 type AMQPConsumer struct {
@@ -52,6 +54,16 @@ func NewAMQPConsumer(
 	if config.ThumbsDelQueueName == "" {
 		return nil, fmt.Errorf(
 			"AMQP thumbs delete queue name cannot be empty in config",
+		)
+	}
+	if config.ThumbsGenPrefetch <= 0 {
+		return nil, fmt.Errorf(
+			"AMQP thumbs generation prefetch must be a positive integer",
+		)
+	}
+	if config.ThumbsDelPrefetch <= 0 {
+		return nil, fmt.Errorf(
+			"AMQP thumbs delete prefetch must be a positive integer",
 		)
 	}
 
@@ -135,8 +147,30 @@ func (c *AMQPConsumer) Start(ctx context.Context) error {
 		)
 	}
 
-	go c.consumeThumbsGenRequests(ctx)
-	go c.consumeThumbsDelRequests(ctx)
+	thumbsGenMsgs, err := c.initConsumer(
+		c.config.ThumbsGenQueueName,
+		"thumbnailer-gen",
+		c.config.ThumbsGenPrefetch,
+	)
+	if err != nil {
+		c.channel.Close()
+		c.conn.Close()
+		return fmt.Errorf("AMQP - Failed to start thumbs gen consumer: %w", err)
+	}
+
+	thumbsDelMsgs, err := c.initConsumer(
+		c.config.ThumbsDelQueueName,
+		"thumbnailer-del",
+		c.config.ThumbsDelPrefetch,
+	)
+	if err != nil {
+		c.channel.Close()
+		c.conn.Close()
+		return fmt.Errorf("AMQP - Failed to start thumbs del consumer: %w", err)
+	}
+
+	go c.consumeThumbsGenRequests(ctx, thumbsGenMsgs)
+	go c.consumeThumbsDelRequests(ctx, thumbsDelMsgs)
 	return nil
 }
 
@@ -163,25 +197,35 @@ func (c *AMQPConsumer) Stop() {
 	slog.Info("AMQP - AMQP Consumer stopped")
 }
 
-func (c *AMQPConsumer) consumeThumbsGenRequests(ctx context.Context) {
-	msgs, err := c.channel.Consume(
-		c.config.ThumbsGenQueueName,
-		"thumbnailer-gen", // Consumer tag
-		false,             // Auto-acknowledge
-		false,             // Exclusive
-		false,             // No-local
-		false,             // No-wait
-		nil,               // Arguments
-	)
-	if err != nil {
-		slog.Error(
-			"AMQP - Failed to create thumbs gen queue consumer",
-			"error",
-			err,
-		)
-		return
+func (c *AMQPConsumer) initConsumer(
+	queueName string,
+	consumerTag string,
+	prefetch int,
+) (<-chan amqp.Delivery, error) {
+	if err := c.channel.Qos(prefetch, 0, false); err != nil {
+		return nil, fmt.Errorf("failed to set consumer qos: %w", err)
 	}
 
+	msgs, err := c.channel.Consume(
+		queueName,
+		consumerTag, // Consumer tag
+		false,       // Auto-acknowledge
+		false,       // Exclusive
+		false,       // No-local
+		false,       // No-wait
+		nil,         // Arguments
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create queue consumer: %w", err)
+	}
+
+	return msgs, nil
+}
+
+func (c *AMQPConsumer) consumeThumbsGenRequests(
+	ctx context.Context,
+	msgs <-chan amqp.Delivery,
+) {
 	for {
 		select {
 		case msg, ok := <-msgs:
@@ -254,25 +298,10 @@ func (c *AMQPConsumer) consumeThumbsGenRequests(ctx context.Context) {
 	}
 }
 
-func (c *AMQPConsumer) consumeThumbsDelRequests(ctx context.Context) {
-	msgs, err := c.channel.Consume(
-		c.config.ThumbsDelQueueName,
-		"thumbnailer-del", // Consumer tag
-		false,             // Auto-acknowledge
-		false,             // Exclusive
-		false,             // No-local
-		false,             // No-wait
-		nil,               // Arguments
-	)
-	if err != nil {
-		slog.Error(
-			"AMQP - Failed to create thumbs del queue consumer",
-			"error",
-			err,
-		)
-		return
-	}
-
+func (c *AMQPConsumer) consumeThumbsDelRequests(
+	ctx context.Context,
+	msgs <-chan amqp.Delivery,
+) {
 	for {
 		select {
 		case msg, ok := <-msgs:

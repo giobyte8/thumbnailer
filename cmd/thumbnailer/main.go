@@ -80,17 +80,52 @@ func prepareAMQPUri() string {
 func prepareAMQPConsumer(
 	telemetry *telemetry.TelemetrySvc,
 ) (consumer.MessageConsumer, error) {
+	thumbsGenPrefetch, err := parsePositiveIntEnv(
+		"AMQP_PREFETCH_THUMB_GEN_REQUESTS",
+		5,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	thumbsDelPrefetch, err := parsePositiveIntEnv(
+		"AMQP_PREFETCH_THUMB_DEL_REQUESTS",
+		5,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	var amqpCfg consumer.AMQPConfig
 	amqpCfg.AMQPUri = prepareAMQPUri()
 	amqpCfg.Exchange = os.Getenv("AMQP_EXCHANGE")
 	amqpCfg.ThumbsGenQueueName = os.Getenv("AMQP_QUEUE_THUMB_GEN_REQUESTS")
 	amqpCfg.ThumbsDelQueueName = os.Getenv("AMQP_QUEUE_THUMB_DEL_REQUESTS")
+	amqpCfg.ThumbsGenPrefetch = thumbsGenPrefetch
+	amqpCfg.ThumbsDelPrefetch = thumbsDelPrefetch
 
 	return consumer.NewAMQPConsumer(
 		amqpCfg,
 		prepareThumbsService(telemetry),
 		telemetry,
 	)
+}
+
+func parsePositiveIntEnv(name string, defaultValue int) (int, error) {
+	valueRaw := os.Getenv(name)
+	if valueRaw == "" {
+		return defaultValue, nil
+	}
+
+	value, err := strconv.Atoi(valueRaw)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be a positive integer: %w", name, err)
+	}
+	if value <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", name)
+	}
+
+	return value, nil
 }
 
 func prepareThumbsService(telemetry *telemetry.TelemetrySvc) *services.ThumbnailsService {
