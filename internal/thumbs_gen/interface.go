@@ -7,7 +7,7 @@ import (
 )
 
 const ThumbsExtension = ".webp"
-const ThumbsQuality = 60
+const ThumbsQuality = 80
 
 // ThumbnailMeta holds all the necessary metadata for generating
 // thumbnails for a specific original image file.
