@@ -79,6 +79,11 @@ func (c *AMQPConsumer) Start(ctx context.Context) error {
 		return fmt.Errorf("AMQP - Failed to open channel: %w", err)
 	}
 
+	// Setup QoS to prefetch 'x' messages at a time
+	if err := c.channel.Qos(10, 0, false); err != nil {
+		return fmt.Errorf("AMQP - Failed to set consumer qos: %w", err)
+	}
+
 	err = c.channel.ExchangeDeclare(
 		c.config.Exchange,
 		"direct",
