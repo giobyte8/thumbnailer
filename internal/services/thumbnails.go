@@ -89,24 +89,47 @@ func (s *ThumbnailsService) cleanupExisting(
 		return nil
 	}
 
-	// Prepare wildcard pattern to match existing thumbnails
+	// Prepare wildcard patterns to match existing thumbnails with
+	// width suffixes of exactly 3 or 4 digits (e.g. 320px, 1080px).
 	baseName := filepath.Base(origFileRelPath)
 	ext := filepath.Ext(baseName)
 	fileNameNoExt := strings.TrimSuffix(baseName, ext)
-	pattern := filepath.Join(
+	pattern3Digits := filepath.Join(
 		thumbsDir,
-		fmt.Sprintf("%s_*px%s", fileNameNoExt, thumbsgen.ThumbsExtension),
+		fmt.Sprintf(
+			"%s_[0-9][0-9][0-9]px%s",
+			fileNameNoExt,
+			thumbsgen.ThumbsExtension,
+		),
+	)
+	pattern4Digits := filepath.Join(
+		thumbsDir,
+		fmt.Sprintf(
+			"%s_[0-9][0-9][0-9][0-9]px%s",
+			fileNameNoExt,
+			thumbsgen.ThumbsExtension,
+		),
 	)
 
-	// Find files matching the pattern
-	matches, err := filepath.Glob(pattern)
+	// Find files matching either pattern
+	matches3Digits, err := filepath.Glob(pattern3Digits)
 	if err != nil {
 		return fmt.Errorf(
 			"failed to glob for existing thumbnails with pattern %s: %w",
-			pattern,
+			pattern3Digits,
 			err,
 		)
 	}
+	matches4Digits, err := filepath.Glob(pattern4Digits)
+	if err != nil {
+		return fmt.Errorf(
+			"failed to glob for existing thumbnails with pattern %s: %w",
+			pattern4Digits,
+			err,
+		)
+	}
+
+	matches := append(matches3Digits, matches4Digits...)
 
 	// Remove each file mathing pattern
 	for _, matchPath := range matches {
