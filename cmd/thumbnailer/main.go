@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -60,37 +59,6 @@ func loadEnv() {
 		slog.Error("Error loading .env file", "error", err)
 		os.Exit(1)
 	}
-}
-
-func prepareAMQPUri() string {
-	rb_host := os.Getenv("RABBITMQ_HOST")
-	rb_port := os.Getenv("RABBITMQ_PORT")
-	rb_user := os.Getenv("RABBITMQ_USER")
-	rb_pass := os.Getenv("RABBITMQ_PASS")
-
-	return fmt.Sprintf(
-		"amqp://%s:%s@%s:%s/",
-		rb_user,
-		rb_pass,
-		rb_host,
-		rb_port,
-	)
-}
-
-func prepareAMQPConsumer(
-	telemetry *telemetry.TelemetrySvc,
-) (consumer.MessageConsumer, error) {
-	var amqpCfg consumer.AMQPConfig
-	amqpCfg.AMQPUri = prepareAMQPUri()
-	amqpCfg.Exchange = os.Getenv("AMQP_EXCHANGE")
-	amqpCfg.ThumbsGenQueueName = os.Getenv("AMQP_QUEUE_THUMB_GEN_REQUESTS")
-	amqpCfg.ThumbsDelQueueName = os.Getenv("AMQP_QUEUE_THUMB_DEL_REQUESTS")
-
-	return consumer.NewAMQPConsumer(
-		amqpCfg,
-		prepareThumbsService(telemetry),
-		telemetry,
-	)
 }
 
 func prepareThumbsService(telemetry *telemetry.TelemetrySvc) *services.ThumbnailsService {
@@ -169,12 +137,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	amqpConsumer, err := prepareAMQPConsumer(telemetry)
-	if err != nil {
-		slog.Error("Failed to create AMQP consumer", "error", err)
-		os.Exit(1)
-	}
-
+	amqpConsumer := consumer.NewAMQPConsumer(
+		prepareThumbsService(telemetry),
+		telemetry,
+	)
 	if err := amqpConsumer.Start(ctx); err != nil {
 		slog.Error("Failed to start AMQP consumer", "error", err)
 		os.Exit(1)
