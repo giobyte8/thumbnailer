@@ -50,7 +50,7 @@ func setupLogging() {
 
 func loadEnv() {
 	if _, err := os.Stat(".env"); os.IsNotExist(err) {
-		slog.Warn("No .env file found, using environment variables directly.")
+		slog.Debug("No .env file found, using environment variables directly.")
 		return
 	}
 
