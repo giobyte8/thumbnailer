@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/h2non/filetype"
 )
@@ -21,6 +23,16 @@ func (d *FormatDetector) Detect(absFilePath string) (Format, error) {
 		return UNSUPPORTED, fmt.Errorf(
 			"failed to detect format: %w",
 			err)
+	}
+
+	// If no magic number matched, fallback to extension-based detection.
+	if format == UNSUPPORTED {
+		format, err = detectWithExtension(absFilePath)
+		if err != nil {
+			return UNSUPPORTED, fmt.Errorf(
+				"failed to detect format with extension: %w",
+				err)
+		}
 	}
 
 	return format, nil
@@ -62,6 +74,31 @@ func detectWithFileType(absFilePath string) (Format, error) {
 
 	// For other formats, we use UNSUPPORTED to delegate detection to next
 	// detector in the chain (e.g. vips).
+	default:
+		return UNSUPPORTED, nil
+	}
+}
+
+func detectWithExtension(absFilePath string) (Format, error) {
+	ext := strings.ToLower(filepath.Ext(absFilePath))
+
+	switch ext {
+	case ".jpg", ".jpeg":
+		return JPEG, nil
+	case ".png":
+		return PNG, nil
+	case ".webp":
+		return WEBP, nil
+	case ".heif", ".heic":
+		return HEIF, nil
+
+	case ".mov":
+		return MOV, nil
+	case ".mp4":
+		return MP4, nil
+	case ".m4v":
+		return M4V, nil
+
 	default:
 		return UNSUPPORTED, nil
 	}
