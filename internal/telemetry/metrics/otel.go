@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -45,8 +46,6 @@ type otelHistograms struct {
 	videoFrameExtractDurationHistogram metric.Int64Histogram
 	formatConvertDurationHistogram     metric.Int64Histogram
 }
-
-var serviceName = semconv.ServiceNameKey.String("thumbnailer")
 
 func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 	shutDownFuncs, err := initOtel(ctx)
@@ -373,7 +372,7 @@ func initOtel(ctx context.Context) ([]func(ctx context.Context) error, error) {
 }
 
 func newResource(ctx context.Context) (*resource.Resource, error) {
-	res, err := resource.New(ctx, resource.WithAttributes(serviceName))
+	res, err := resource.New(ctx, resource.WithFromEnv())
 	if err != nil {
 		return nil, fmt.Errorf(
 			"failed to create resource for OpenTelemetry: %w",
@@ -381,7 +380,60 @@ func newResource(ctx context.Context) (*resource.Resource, error) {
 		)
 	}
 
+	fallbackAttrs := make([]attribute.KeyValue, 0, 2)
+
+	serviceNamespaceValue, found := res.Set().Value(semconv.ServiceNamespaceKey)
+	if !found || serviceNamespaceValue.AsString() == "" {
+		fallbackAttrs = append(fallbackAttrs, resourceServiceNamespace())
+	}
+
+	serviceNameValue, found := res.Set().Value(semconv.ServiceNameKey)
+	if !found || serviceNameValue.AsString() == "" {
+		fallbackAttrs = append(fallbackAttrs, resourceServiceName())
+	}
+
+	instanceId, found := res.Set().Value(semconv.ServiceInstanceIDKey)
+	if !found || instanceId.AsString() == "" {
+		fallbackAttrs = append(fallbackAttrs, resourceServiceInstanceId())
+	}
+
+	if len(fallbackAttrs) > 0 {
+		res, err = resource.Merge(
+			res,
+			resource.NewSchemaless(fallbackAttrs...),
+		)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"failed to add fallback OpenTelemetry resource attributes: %w",
+				err,
+			)
+		}
+	}
+
 	return res, nil
+}
+
+// Provides the OTEL service namespace for this instance.
+// > Used only when OTEL_RESOURCE_ATTRIBUTES doesn't provide a value
+func resourceServiceNamespace() attribute.KeyValue {
+	return semconv.ServiceNamespaceKey.String("galleries")
+}
+
+// Provides the OTEL service name for this instance.
+// > Used only when OTEL_RESOURCE_ATTRIBUTES doesn't provide a value
+func resourceServiceName() attribute.KeyValue {
+	return semconv.ServiceNameKey.String("thumbnailer")
+}
+
+// Provides the OTEL service instance ID for this instance.
+// > Used only when OTEL_RESOURCE_ATTRIBUTES doesn't provide a value
+func resourceServiceInstanceId() attribute.KeyValue {
+	hostname, err := os.Hostname()
+	if err == nil && hostname != "" {
+		return semconv.ServiceInstanceIDKey.String(hostname)
+	}
+
+	return semconv.ServiceInstanceIDKey.String(uuid.NewString())
 }
 
 // Creates a new gRPC connection to the OpenTelemetry collector.
