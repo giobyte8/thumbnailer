@@ -28,4 +28,4 @@ runtime/
 
 # Build output
 ./thumbnailer
-./build
+./build/
