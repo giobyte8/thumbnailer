@@ -4,15 +4,14 @@ set -euo pipefail
 readonly timeout_seconds="${1:-60}"
 readonly sample_interval_seconds="0.2"
 readonly shutdown_timeout_seconds="5"
-readonly enqueue_timeout_seconds="5"
 readonly queue_vhost="%2F"
 
-if ! [[ "$timeout_seconds" =~ ^[1-9][0-9]*$ ]]; then
-  echo "Timeout must be a positive whole number of seconds." >&2
+if (( $# > 1 )) || ! [[ "$timeout_seconds" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Usage: $0 [timeout-seconds]" >&2
   exit 1
 fi
 
-for command in curl go jq ps; do
+for command in curl go grep jq ps; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Required command not found: $command" >&2
     exit 1
@@ -32,6 +31,7 @@ source .env
 : "${RABBITMQ_PASS:?RABBITMQ_PASS must be set in .env}"
 : "${AMQP_QUEUE_THUMB_GEN_REQUESTS:?AMQP_QUEUE_THUMB_GEN_REQUESTS must be set in .env}"
 : "${DIR_ORIGINALS_ROOT:?DIR_ORIGINALS_ROOT must be set in .env}"
+: "${THUMBNAIL_WIDTHS_PX:?THUMBNAIL_WIDTHS_PX must be set in .env}"
 
 readonly rabbitmq_api_port="${RABBITMQ_API_PORT:-15672}"
 readonly queue_url="http://${RABBITMQ_HOST}:${rabbitmq_api_port}/api/queues/${queue_vhost}/${AMQP_QUEUE_THUMB_GEN_REQUESTS}"
@@ -49,6 +49,9 @@ if (( ${#images[@]} == 0 )); then
   echo "No test images found in: $originals_dir" >&2
   exit 1
 fi
+
+IFS=',' read -r -a thumbnail_widths <<<"$THUMBNAIL_WIDTHS_PX"
+readonly expected_transforms=$(( ${#images[@]} * ${#thumbnail_widths[@]} ))
 
 service_pid=""
 cleanup_complete=false
@@ -76,26 +79,18 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-queue_state() {
-  curl --fail --silent --show-error \
-    -u "$RABBITMQ_USER:$RABBITMQ_PASS" \
-    "$queue_url" \
-    | jq -r '[.messages, .messages_ready, .messages_unacknowledged] | @tsv'
+service_started_processing() {
+  grep --quiet --fixed-strings "Processing thumbnail generation request" /tmp/thumbnailer-memory-assessment.log
 }
 
-queue_is_empty() {
-  local state
-  state="$(queue_state)"
-  [[ "$state" == $'0\t0\t0' ]]
-}
-
-queue_has_messages() {
-  local state
-  state="$(queue_state)"
-  [[ "$state" != $'0\t0\t0' ]]
+service_completed_transforms() {
+  local completed_transforms
+  completed_transforms="$(grep --count --fixed-strings "Image transformed successfully" /tmp/thumbnailer-memory-assessment.log || true)"
+  (( completed_transforms >= expected_transforms ))
 }
 
 echo "Building thumbnailer..."
+mkdir -p ./build
 go build -o ./build/thumbnailer ./cmd/thumbnailer
 
 echo "Clearing generation queue..."
@@ -107,16 +102,6 @@ curl --fail --silent --show-error \
 echo "Enqueueing ${#images[@]} test image(s)..."
 ./scripts/req_thumbs_generate.sh >/dev/null
 
-enqueue_deadline=$((SECONDS + enqueue_timeout_seconds))
-while ! queue_has_messages && (( SECONDS < enqueue_deadline )); do
-  sleep "$sample_interval_seconds"
-done
-
-if ! queue_has_messages; then
-  echo "No generation requests were enqueued." >&2
-  exit 1
-fi
-
 echo "Starting thumbnailer..."
 ./build/thumbnailer >/tmp/thumbnailer-memory-assessment.log 2>&1 &
 service_pid=$!
@@ -124,15 +109,31 @@ service_pid=$!
 minimum_rss_kib=""
 maximum_rss_kib=0
 deadline=$((SECONDS + timeout_seconds))
-queue_drained=false
-
-# Allow the process to finish exec before collecting RSS samples.
-sleep "$sample_interval_seconds"
+transforms_completed=false
 
 while (( SECONDS < deadline )); do
   if ! kill -0 "$service_pid" 2>/dev/null; then
     wait "$service_pid" || true
-    echo "Thumbnailer exited before the queue drained. See /tmp/thumbnailer-memory-assessment.log" >&2
+    echo "Thumbnailer exited before processing began. See /tmp/thumbnailer-memory-assessment.log" >&2
+    exit 1
+  fi
+
+  if service_started_processing; then
+    break
+  fi
+
+  sleep "$sample_interval_seconds"
+done
+
+if ! service_started_processing; then
+  echo "Thumbnailer did not begin processing within ${timeout_seconds} seconds. See /tmp/thumbnailer-memory-assessment.log" >&2
+  exit 1
+fi
+
+while (( SECONDS < deadline )); do
+  if ! kill -0 "$service_pid" 2>/dev/null; then
+    wait "$service_pid" || true
+    echo "Thumbnailer exited before thumbnail generation completed. See /tmp/thumbnailer-memory-assessment.log" >&2
     exit 1
   fi
 
@@ -146,16 +147,16 @@ while (( SECONDS < deadline )); do
     fi
   fi
 
-  if queue_is_empty; then
-    queue_drained=true
+  if service_completed_transforms; then
+    transforms_completed=true
     break
   fi
 
   sleep "$sample_interval_seconds"
 done
 
-if [[ "$queue_drained" != true ]]; then
-  echo "Generation queue did not drain within ${timeout_seconds} seconds. See /tmp/thumbnailer-memory-assessment.log" >&2
+if [[ "$transforms_completed" != true ]]; then
+  echo "Thumbnail generation did not complete within ${timeout_seconds} seconds. See /tmp/thumbnailer-memory-assessment.log" >&2
   exit 1
 fi
 
@@ -165,8 +166,5 @@ if [[ -z "$minimum_rss_kib" ]]; then
 fi
 
 awk -v min_kib="$minimum_rss_kib" -v max_kib="$maximum_rss_kib" 'BEGIN {
-  printf "minimum_rss_kib=%d\n", min_kib
-  printf "minimum_rss_mib=%.2f\n", min_kib / 1024
-  printf "maximum_rss_kib=%d\n", max_kib
-  printf "maximum_rss_mib=%.2f\n", max_kib / 1024
+  printf "{\"minimum_rss_kib\":%d,\"minimum_rss_mib\":%.2f,\"maximum_rss_kib\":%d,\"maximum_rss_mib\":%.2f}\n", min_kib, min_kib / 1024, max_kib, max_kib / 1024
 }'
