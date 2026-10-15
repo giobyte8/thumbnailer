@@ -190,6 +190,19 @@ func (g *ImageThumbsGenerator) generateThumb(
 	targetWidth int,
 ) error {
 
+	// ImageOps memory requirements:
+	// It holds processing pixels in memory during image transformations
+	//  - Each pixel requires 4 bytes
+	//  - Double buffer technique is used.
+	//    A third buffer is used for animated images.
+	//  - Size of max image axis is the size of each squared buffer
+	//    `max(width, height)`
+	//
+	// `NewImageOps(maxDimension)` = 4 * maxDimension^2 * 2
+	//  Max Dimension  |  Per buffer |  2 buffers
+	//  8192           |  ~256  MB   |  ~512  MB
+	//  16320          |  ~1.02 GB   |  ~2.04 GB
+
 	// Reuse shared ImageOps if original image dimensions are within its capacity,
 	// otherwise create a new one just for this request.
 	var imgOps *lilliput.ImageOps
