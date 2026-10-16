@@ -21,6 +21,7 @@ const (
 	LPDedicatedImageOpsCreated                   MetricName = "lilliput.dedicated_imageops_created"
 	LPErrOutputBufferTooSmall                    MetricName = "lilliput.err.output_buffer_too_small"
 	ImageThumbGeneratorMaxImageDimensionExceeded MetricName = "image_thumb_generator.max_image_dimension_exceeded"
+	LPResourcesImageOpsMaxSize                   MetricName = "lp_resources.image_ops_max_size"
 
 	// Duration of thumbnail generation including preliminary steps
 	// like frame extraction and format conversion.
@@ -37,6 +38,7 @@ const (
 type MetricsSvc interface {
 	Increment(metric MetricName)
 	IncrementWAttrs(metric MetricName, attrs map[string]string)
+	Gauge(metric MetricName, value int64)
 
 	Duration(metric MetricName, duration time.Duration)
 	DurationWAttrs(

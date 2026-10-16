@@ -22,6 +22,7 @@ import (
 
 type OtelMetricsSvc struct {
 	counters   otelCounters
+	gauges     otelGauges
 	histograms otelHistograms
 
 	shutDownFuncs []func(ctx context.Context) error
@@ -48,6 +49,10 @@ type otelHistograms struct {
 	formatConvertDurationHistogram     metric.Int64Histogram
 }
 
+type otelGauges struct {
+	lpResourcesImageOpsMaxSizeGauge metric.Int64Gauge
+}
+
 func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 	shutDownFuncs, err := initOtel(ctx)
 	if err != nil {
@@ -65,10 +70,32 @@ func NewOtelMetricsSvc(ctx context.Context) (*OtelMetricsSvc, error) {
 		return nil, err
 	}
 
+	gauges, err := initGauges(meter)
+	if err != nil {
+		return nil, err
+	}
+
 	return &OtelMetricsSvc{
 		counters:      *counters,
+		gauges:        *gauges,
 		histograms:    *histograms,
 		shutDownFuncs: shutDownFuncs,
+	}, nil
+}
+
+func initGauges(meter metric.Meter) (*otelGauges, error) {
+	lpResourcesImageOpsMaxSizeGauge, err := meter.Int64Gauge(
+		string(LPResourcesImageOpsMaxSize),
+		metric.WithDescription(
+			"Largest image dimension currently supported by retained Lilliput ImageOps resources"),
+		metric.WithUnit("px"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &otelGauges{
+		lpResourcesImageOpsMaxSizeGauge: lpResourcesImageOpsMaxSizeGauge,
 	}, nil
 }
 
@@ -262,6 +289,17 @@ func (s *OtelMetricsSvc) IncrementWAttrs(
 
 	default:
 		slog.Warn("Unknown metric name", "metricName", metricName)
+	}
+}
+
+func (s *OtelMetricsSvc) Gauge(metricName MetricName, value int64) {
+	ctx := context.Background()
+
+	switch metricName {
+	case LPResourcesImageOpsMaxSize:
+		s.gauges.lpResourcesImageOpsMaxSizeGauge.Record(ctx, value)
+	default:
+		slog.Warn("Unknown gauge metric name", "metricName", metricName)
 	}
 }
 

@@ -21,6 +21,10 @@ func (n *NoopMetricsSvc) IncrementWAttrs(
 	// No operation performed
 }
 
+func (n *NoopMetricsSvc) Gauge(metric MetricName, value int64) {
+	// No operation performed
+}
+
 func (n *NoopMetricsSvc) Duration(metric MetricName, duration time.Duration) {
 	// No operation performed
 }
