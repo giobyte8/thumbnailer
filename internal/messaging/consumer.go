@@ -23,8 +23,18 @@ type AMQPConsumer struct {
 	ctx          context.Context
 }
 
-func NewAMQPConsumer(channel *amqp.Channel, thumbnailSvc *services.ThumbnailsService, telemetry *telemetry.TelemetrySvc, producer Publisher) *AMQPConsumer {
-	return &AMQPConsumer{channel: channel, thumbnailSvc: thumbnailSvc, telemetry: *telemetry, producer: producer}
+func NewAMQPConsumer(
+	channel *amqp.Channel,
+	thumbnailSvc *services.ThumbnailsService,
+	telemetry *telemetry.TelemetrySvc,
+	producer Publisher,
+) *AMQPConsumer {
+	return &AMQPConsumer{
+		channel:      channel,
+		thumbnailSvc: thumbnailSvc,
+		telemetry:    *telemetry,
+		producer:     producer,
+	}
 }
 
 func (consumer *AMQPConsumer) Start(ctx context.Context) {
@@ -57,7 +67,14 @@ func (consumer *AMQPConsumer) processGenMessage(message amqp.Delivery) error {
 		return err
 	}
 
-	slog.Warn("Image dimension exceeds allowed maximum, rerouting request", "filePath", thumbRequest.FilePath, "width", dimensionErr.Width, "height", dimensionErr.Height, "maxAllowedDimension", dimensionErr.MaxAllowedDimension)
+	slog.Debug(
+		"MaxImgDimensionExceededError, rerouting request",
+		"filePath",
+		thumbRequest.FilePath,
+		"width", dimensionErr.Width,
+		"height", dimensionErr.Height,
+		"maxAllowedDimension", dimensionErr.MaxAllowedDimension,
+	)
 	return consumer.producer.Publish(consumer.ctx, message.Body)
 }
 
