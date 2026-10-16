@@ -28,9 +28,18 @@ func NewAMQPPublisher(channel *amqp.Channel, exchange string, routingKey string)
 }
 
 func (publisher *AMQPPublisher) Publish(ctx context.Context, body []byte) error {
-	if err := publisher.channel.PublishWithContext(ctx, publisher.exchange, publisher.routingKey, false, false, amqp.Publishing{
-		ContentType: "application/json", DeliveryMode: amqp.Persistent, Body: body,
-	}); err != nil {
+	if err := publisher.channel.PublishWithContext(
+		ctx,
+		publisher.exchange,
+		publisher.routingKey,
+		false,
+		false,
+		amqp.Publishing {
+			ContentType: "application/json",
+			DeliveryMode: amqp.Persistent,
+			Body: body,
+		},
+	); err != nil {
 		return err
 	}
 

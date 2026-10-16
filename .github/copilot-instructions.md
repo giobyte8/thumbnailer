@@ -1,22 +1,36 @@
 # Copilot instructions for thumbnailer project
 
 ## Project purpose
+This project implements a thumbnail generation service, for image and video
 files of different formats, using different libraries and tools for it.
+
 It is designed to be containerized and deployed in environments where image
+processing is needed, such as web applications or media management systems.
+
+Main runtime flow:
 1. The service listens for thumbnail generation requests.
+2. Upon receiving a request, it processes the original image/video file to
    create thumbnails of specified widths.
 3. Generated thumbnails are saved to a designated directory on the filesystem.
 
-- Flow: RabbitMQ message -> `internal/messaging` -> `internal/services`
+## Architecture
+- Entrypoint: `cmd/thumbnailer/main.go` wires env, logging, telemetry,
+  consumer, and graceful shutdown.
+- Flow: RabbitMQ message -> `internal/messaging/consumer` -> `internal/services`
+  orchestration -> `internal/thumbs_gen` image generation -> filesystem output
   (`runtime/thumbs`).
 - Data model is intentionally minimal (`internal/models/thumb_requests.go` with
   UUID + relative file path).
+- Keep transport concerns in consumer, business orchestration in services,
   implementation details in generator packages.
+- Prefer interfaces over concrete coupling (`internal/messaging/consumer.go`,
   `internal/thumbs_gen/interface.go`, `internal/telemetry/metrics/interface.go`).
+
 ## Code Style
+- Language: Go (module in `go.mod`, toolchain pinned in `mise.toml`).
 - Use structured logging with `log/slog` key/value fields; follow patterns
- AMQP transport + queue binding: `internal/messaging/amqp_resources.go`.
-- Prefer constructor + interface boundaries (`NewMessaging`, `NewAMQPConsumer`,
+  in `cmd/thumbnailer/main.go` and `internal/consumer/amqp_consumer.go`.
+- Prefer constructor + interface boundaries (`NewAMQPConsumer`,
   `ThumbsGenerator`, telemetry interfaces) as in
   `internal/messaging/consumer.go` and `internal/thumbs_gen/interface.go`.
 - Keep error handling explicit and wrapped (`fmt.Errorf("...: %w", err)`),

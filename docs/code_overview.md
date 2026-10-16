@@ -47,5 +47,5 @@ for requested files. The codebase is organized into the following components:
 | Interface          | Current Implementation       | Purpose                                                   |
 |--------------------|------------------------------|-----------------------------------------------------------|
 | `MessageConsumer`  | `AMQPConsumer`               | Consumes messages from RabbitMQ                           |
-| `MessagePublisher` | `AMQPPublisher`              | Publishes rerouted messages to RabbitMQ                   |
+| `MessagePublisher` | `AMQPPublisher`              | Publishes messages to RabbitMQ                   |
 | `ThumbsGenerator`  | `RoutedThumbsGenerator`      | Routes thumbnail generation to format-specific generators |

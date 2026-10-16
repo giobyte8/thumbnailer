@@ -189,6 +189,8 @@ func main() {
 		prepareThumbsService(telemetry),
 		telemetry,
 	)
+
+	// Graceful shutdown handling for OS signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	startErr := make(chan error, 1)

@@ -19,7 +19,10 @@ type Messaging struct {
 	telemetry    telemetry.TelemetrySvc
 }
 
-func NewMessaging(thumbnailSvc *services.ThumbnailsService, telemetry *telemetry.TelemetrySvc) *Messaging {
+func NewMessaging(
+	thumbnailSvc *services.ThumbnailsService,
+	telemetry *telemetry.TelemetrySvc,
+) *Messaging {
 	return &Messaging{resources: NewAMQPResources(), thumbnailSvc: thumbnailSvc, telemetry: *telemetry}
 }
 
@@ -30,6 +33,7 @@ func (messaging *Messaging) Start(ctx context.Context) error {
 				return fmt.Errorf("AMQP: connection/setup max attempts reached: %w", err)
 			}
 			slog.Warn("AMQP: connection/setup attempt failed", "attempt", attempt, "error", err)
+
 			select {
 			case <-time.After(5 * time.Second):
 			case <-ctx.Done():
@@ -39,8 +43,15 @@ func (messaging *Messaging) Start(ctx context.Context) error {
 		}
 
 		cfg := config.Amqp()
-		producer := NewAMQPPublisher(messaging.resources.ProducerChannel(), cfg.ExchangeName, cfg.ThumbsGenOverAllowedDimensionQueueName)
-		consumer := NewAMQPConsumer(messaging.resources.ConsumerChannel(), messaging.thumbnailSvc, &messaging.telemetry, producer)
+		producer := NewAMQPPublisher(
+			messaging.resources.ProducerChannel(),
+			cfg.ExchangeName,
+			cfg.ThumbsGenOverAllowedDimensionQueueName)
+		consumer := NewAMQPConsumer(
+			messaging.resources.ConsumerChannel(),
+			messaging.thumbnailSvc,
+			&messaging.telemetry,
+			producer)
 		consumer.Start(ctx)
 
 		connectionClosed := make(chan *amqp.Error, 1)
@@ -49,6 +60,7 @@ func (messaging *Messaging) Start(ctx context.Context) error {
 		messaging.resources.Connection().NotifyClose(connectionClosed)
 		messaging.resources.ConsumerChannel().NotifyClose(consumerChannelClosed)
 		messaging.resources.ProducerChannel().NotifyClose(producerChannelClosed)
+
 		select {
 		case <-ctx.Done():
 			messaging.Stop()
