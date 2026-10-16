@@ -15,7 +15,7 @@ for requested files. The codebase is organized into the following components:
   - Initializes dependencies and starts the service
 
 - **Consumer**
-  - `internal/consumer`
+  - `internal/messaging`
   - Listens to RabbitMQ for requests
   - Processes messages using `AMQPConsumer`
 
@@ -47,4 +47,5 @@ for requested files. The codebase is organized into the following components:
 | Interface          | Current Implementation       | Purpose                                                   |
 |--------------------|------------------------------|-----------------------------------------------------------|
 | `MessageConsumer`  | `AMQPConsumer`               | Consumes messages from RabbitMQ                           |
+| `MessagePublisher` | `AMQPPublisher`              | Publishes rerouted messages to RabbitMQ                   |
 | `ThumbsGenerator`  | `RoutedThumbsGenerator`      | Routes thumbnail generation to format-specific generators |

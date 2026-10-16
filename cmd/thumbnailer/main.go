@@ -10,7 +10,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/giobyte8/thumbnailer/internal/consumer"
+	"github.com/giobyte8/thumbnailer/internal/messaging"
 	"github.com/giobyte8/thumbnailer/internal/services"
 	"github.com/joho/godotenv"
 
@@ -185,23 +185,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	amqpConsumer := consumer.NewAMQPConsumer(
+	messageService := messaging.NewMessaging(
 		prepareThumbsService(telemetry),
 		telemetry,
 	)
-	if err := amqpConsumer.Start(ctx); err != nil {
-		slog.Error("Failed to start AMQP consumer", "error", err)
-		os.Exit(1)
-	}
-	slog.Info("Thumbnailer service is running. Press Ctrl+C to stop.")
-
-	// Graceful shutdown (listen for OS signals)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	startErr := make(chan error, 1)
+	go func() {
+		startErr <- messageService.Start(ctx)
+	}()
+	slog.Info("Thumbnailer service is running. Press Ctrl+C to stop.")
 
 	select {
 	case s := <-sigChan:
 		slog.Info("Received OS signal, shutting down...", "signal", s.String())
+		cancel()
+	case err := <-startErr:
+		if err != nil {
+			slog.Error("Failed to start messaging service", "error", err)
+			os.Exit(1)
+		}
 	case <-ctx.Done():
 		slog.Info(
 			"Parent context cancelled, shutting down...",
@@ -214,12 +218,11 @@ func main() {
 	// Perform graceful shutdown operations
 	// before cancelling context
 
-	amqpConsumer.Stop()
+	messageService.Stop()
 	if err := telemetry.Shutdown(ctx); err != nil {
 		slog.Error("Failed to shutdown telemetry services", "error", err)
 	}
 
-	// Trigger context cancellation
-	cancel()
+	signal.Stop(sigChan)
 	slog.Info("Thumbnailer service exited gracefully.")
 }

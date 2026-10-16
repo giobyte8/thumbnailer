@@ -21,6 +21,7 @@ RABBITMQ_VHOST=media
 AMQP_EXCHANGE=thumbs
 AMQP_QUEUE_THUMB_GEN_REQUESTS=thumbs-gen
 AMQP_QUEUE_THUMB_DEL_REQUESTS=thumbs-del
+AMQP_QUEUE_THUMB_GEN_REQUESTS_OVER_ALLOWED_DIMENSION=thumbs-gen-over-dimension
 DIR_ORIGINALS_ROOT=/data/originals
 DIR_THUMBNAILS_ROOT=/data/thumbs
 THUMBNAIL_WIDTHS_PX="128, 256,512"
@@ -48,6 +49,9 @@ OTEL_COLLECTOR_GRPC_ENDPOINT=collector.local:4317
 	}
 	if amqpCfg.ThumbsGenQueueName != "thumbs-gen" || amqpCfg.ThumbsDelQueueName != "thumbs-del" {
 		t.Fatalf("AMQP queues = %+v, want thumbs-gen/thumbs-del", amqpCfg)
+	}
+	if amqpCfg.ThumbsGenOverAllowedDimensionQueueName != "thumbs-gen-over-dimension" {
+		t.Fatalf("AMQP oversized image queue = %q, want thumbs-gen-over-dimension", amqpCfg.ThumbsGenOverAllowedDimensionQueueName)
 	}
 	if got := amqpCfg.Uri(); got != "amqp://guest:secret@broker.local:5673/media" {
 		t.Fatalf("AMQP Uri = %q, want %q", got, "amqp://guest:secret@broker.local:5673/media")

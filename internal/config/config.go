@@ -28,9 +28,10 @@ type AmqpConfig struct {
 	Pass  string
 	VHost string
 
-	ExchangeName       string
-	ThumbsGenQueueName string
-	ThumbsDelQueueName string
+	ExchangeName                           string
+	ThumbsGenQueueName                     string
+	ThumbsDelQueueName                     string
+	ThumbsGenOverAllowedDimensionQueueName string
 }
 
 func (c AmqpConfig) Uri() string {
@@ -137,6 +138,9 @@ func newAmqpConfig() AmqpConfig {
 		ExchangeName:       os.Getenv("AMQP_EXCHANGE"),
 		ThumbsGenQueueName: os.Getenv("AMQP_QUEUE_THUMB_GEN_REQUESTS"),
 		ThumbsDelQueueName: os.Getenv("AMQP_QUEUE_THUMB_DEL_REQUESTS"),
+		ThumbsGenOverAllowedDimensionQueueName: os.Getenv(
+			"AMQP_QUEUE_THUMB_GEN_REQUESTS_OVER_ALLOWED_DIMENSION",
+		),
 	}
 }
 
