@@ -206,8 +206,8 @@ func main() {
 	case err := <-startErr:
 		if err != nil {
 			slog.Error("Failed to start messaging service", "error", err)
-			os.Exit(1)
 		}
+		cancel()
 	case <-ctx.Done():
 		slog.Info(
 			"Parent context cancelled, shutting down...",

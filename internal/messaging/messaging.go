@@ -23,7 +23,11 @@ func NewMessaging(
 	thumbnailSvc *services.ThumbnailsService,
 	telemetry *telemetry.TelemetrySvc,
 ) *Messaging {
-	return &Messaging{resources: NewAMQPResources(), thumbnailSvc: thumbnailSvc, telemetry: *telemetry}
+	return &Messaging{
+		resources:    NewAMQPResources(),
+		thumbnailSvc: thumbnailSvc,
+		telemetry:    *telemetry,
+	}
 }
 
 func (messaging *Messaging) Start(ctx context.Context) error {
