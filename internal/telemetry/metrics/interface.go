@@ -18,8 +18,9 @@ const (
 	FormatConverted     MetricName = "format_converter.converted"
 	VideoFrameExtracted MetricName = "video_frame_extractor.extracted"
 
-	LPDedicatedImageOpsCreated MetricName = "lilliput.dedicated_imageops_created"
-	LPErrOutputBufferTooSmall  MetricName = "lilliput.err.output_buffer_too_small"
+	LPDedicatedImageOpsCreated                   MetricName = "lilliput.dedicated_imageops_created"
+	LPErrOutputBufferTooSmall                    MetricName = "lilliput.err.output_buffer_too_small"
+	ImageThumbGeneratorMaxImageDimensionExceeded MetricName = "image_thumb_generator.max_image_dimension_exceeded"
 
 	// Duration of thumbnail generation including preliminary steps
 	// like frame extraction and format conversion.

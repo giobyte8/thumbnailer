@@ -36,8 +36,9 @@ type otelCounters struct {
 	formatConvertedCounter     metric.Int64Counter
 	videoFrameExtractedCounter metric.Int64Counter
 
-	lpDedicatedImageOpsCreatedCounter metric.Int64Counter
-	lpErrOutputBufferTooSmallCounter  metric.Int64Counter
+	lpDedicatedImageOpsCreatedCounter                   metric.Int64Counter
+	lpErrOutputBufferTooSmallCounter                    metric.Int64Counter
+	imageThumbGeneratorMaxImageDimensionExceededCounter metric.Int64Counter
 }
 
 type otelHistograms struct {
@@ -142,6 +143,16 @@ func initCounters(meter metric.Meter) (*otelCounters, error) {
 		return nil, err
 	}
 
+	imageThumbGeneratorMaxImageDimensionExceededCounter, err := meter.Int64Counter(
+		string(ImageThumbGeneratorMaxImageDimensionExceeded),
+		metric.WithDescription(
+			"Number of images rejected for exceeding the maximum allowed dimension"),
+		metric.WithUnit("{image}"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	lpErrOutputBufferTooSmallCounter, err := meter.Int64Counter(
 		string(LPErrOutputBufferTooSmall),
 		metric.WithDescription(
@@ -161,8 +172,9 @@ func initCounters(meter metric.Meter) (*otelCounters, error) {
 		formatConvertedCounter:     formatConvertedCounter,
 		videoFrameExtractedCounter: videoFrameExtractedCounter,
 
-		lpDedicatedImageOpsCreatedCounter: lpDedicatedImageOpsCreatedCounter,
-		lpErrOutputBufferTooSmallCounter:  lpErrOutputBufferTooSmallCounter,
+		lpDedicatedImageOpsCreatedCounter:                   lpDedicatedImageOpsCreatedCounter,
+		lpErrOutputBufferTooSmallCounter:                    lpErrOutputBufferTooSmallCounter,
+		imageThumbGeneratorMaxImageDimensionExceededCounter: imageThumbGeneratorMaxImageDimensionExceededCounter,
 	}, nil
 }
 
@@ -245,6 +257,8 @@ func (s *OtelMetricsSvc) IncrementWAttrs(
 		s.counters.lpDedicatedImageOpsCreatedCounter.Add(ctx, 1, opts)
 	case LPErrOutputBufferTooSmall:
 		s.counters.lpErrOutputBufferTooSmallCounter.Add(ctx, 1, opts)
+	case ImageThumbGeneratorMaxImageDimensionExceeded:
+		s.counters.imageThumbGeneratorMaxImageDimensionExceededCounter.Add(ctx, 1, opts)
 
 	default:
 		slog.Warn("Unknown metric name", "metricName", metricName)

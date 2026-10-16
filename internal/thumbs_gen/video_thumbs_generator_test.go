@@ -132,6 +132,7 @@ func mkVideoGenerator(t *testing.T) *VideoThumbsGenerator {
 		telemetrySvc,
 		format.NewFormatConverter(telemetrySvc, fmtDetector),
 		fmtDetector,
+		4096,
 	)
 
 	return NewVideoThumbsGenerator(

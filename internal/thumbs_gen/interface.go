@@ -2,6 +2,7 @@ package thumbsgen
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/giobyte8/thumbnailer/internal/format"
 )
@@ -54,4 +55,19 @@ type ThumbsGenerator interface {
 type ImgDimensions struct {
 	Width  int
 	Height int
+}
+
+type MaxImgDimensionExceededError struct {
+	Width               int
+	Height              int
+	MaxAllowedDimension int
+}
+
+func (e *MaxImgDimensionExceededError) Error() string {
+	return fmt.Sprintf(
+		"image dimensions %dx%d exceed maximum allowed dimension %d",
+		e.Width,
+		e.Height,
+		e.MaxAllowedDimension,
+	)
 }

@@ -2,7 +2,9 @@ package thumbsgen
 
 import (
 	"context"
+	"errors"
 	"image"
+	_ "image/jpeg"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -65,6 +67,68 @@ func TestImageThumbsGenerator_Integration_SupportedCases(t *testing.T) {
 	}
 }
 
+func TestImageThumbsGenerator_AtMaximumDimension(t *testing.T) {
+	originalsDir := testutils.TestFilesDir()
+	originalPath := filepath.Join(originalsDir, "1 house.jpg")
+	file, err := os.Open(originalPath)
+	if err != nil {
+		t.Fatalf("failed to open original image: %v", err)
+	}
+	imageConfig, _, err := image.DecodeConfig(file)
+	file.Close()
+	if err != nil {
+		t.Fatalf("failed to read original image dimensions: %v", err)
+	}
+	maxDimension := max(imageConfig.Width, imageConfig.Height)
+
+	generator := mkGenerator(t, maxDimension)
+	meta := ThumbnailMeta{
+		OrigFilesRootDir: originalsDir,
+		OrigFileRelPath:  "1 house.jpg",
+		ThumbFileAbsDir:  t.TempDir(),
+		ThumbWidths:      []int{120},
+	}
+
+	if err := generator.Generate(context.Background(), meta); err != nil {
+		t.Fatalf("image at the maximum dimension should be accepted: %v", err)
+	}
+}
+
+func TestImageThumbsGenerator_RejectsAboveMaximumDimension(t *testing.T) {
+	originalsDir := testutils.TestFilesDir()
+	originalPath := filepath.Join(originalsDir, "1 house.jpg")
+	file, err := os.Open(originalPath)
+	if err != nil {
+		t.Fatalf("failed to open original image: %v", err)
+	}
+	imageConfig, _, err := image.DecodeConfig(file)
+	file.Close()
+	if err != nil {
+		t.Fatalf("failed to read original image dimensions: %v", err)
+	}
+	maxDimension := max(imageConfig.Width, imageConfig.Height)
+
+	generator := mkGenerator(t, maxDimension-1)
+	meta := ThumbnailMeta{
+		OrigFilesRootDir: originalsDir,
+		OrigFileRelPath:  "1 house.jpg",
+		ThumbFileAbsDir:  t.TempDir(),
+		ThumbWidths:      []int{120},
+	}
+
+	err = generator.Generate(context.Background(), meta)
+	var dimensionErr *MaxImgDimensionExceededError
+	if !errors.As(err, &dimensionErr) {
+		t.Fatalf("expected MaxImgDimensionExceededError, got %v", err)
+	}
+	if dimensionErr.Width != imageConfig.Width || dimensionErr.Height != imageConfig.Height {
+		t.Fatalf("dimension error = %+v, want source dimensions %dx%d", dimensionErr, imageConfig.Width, imageConfig.Height)
+	}
+	if dimensionErr.MaxAllowedDimension != maxDimension-1 {
+		t.Fatalf("maximum dimension = %d, want %d", dimensionErr.MaxAllowedDimension, maxDimension-1)
+	}
+}
+
 func TestImageThumbsGenerator_Integration_HEIF(t *testing.T) {
 	if _, err := exec.LookPath("heif-convert"); err != nil {
 		t.Skip("heif-convert not available, skipping HEIF test")
@@ -118,7 +182,7 @@ func TestImageThumbsGenerator_UnsupportedMedia(t *testing.T) {
 	}
 }
 
-func mkGenerator(t *testing.T) *ImageThumbsGenerator {
+func mkGenerator(t *testing.T, maxDimension ...int) *ImageThumbsGenerator {
 	t.Helper()
 	t.Setenv("OTEL_ENABLED", "false")
 
@@ -131,10 +195,15 @@ func mkGenerator(t *testing.T) *ImageThumbsGenerator {
 	})
 
 	fmtDetector := format.NewFormatDetector()
+	configuredMaxDimension := 8192
+	if len(maxDimension) > 0 {
+		configuredMaxDimension = maxDimension[0]
+	}
 	return NewImageThumbsGenerator(
 		telemetrySvc,
 		format.NewFormatConverter(telemetrySvc, fmtDetector),
 		fmtDetector,
+		configuredMaxDimension,
 	)
 }
 

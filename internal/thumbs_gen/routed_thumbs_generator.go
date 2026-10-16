@@ -21,6 +21,7 @@ type RoutedThumbsGenerator struct {
 
 func NewRoutedThumbsGenerator(
 	telemetryService *telemetry.TelemetrySvc,
+	maxAllowedImageDimension int,
 ) *RoutedThumbsGenerator {
 	formatDetector := format.NewFormatDetector()
 	formatConverter := format.NewFormatConverter(
@@ -34,6 +35,7 @@ func NewRoutedThumbsGenerator(
 		telemetryService,
 		formatConverter,
 		formatDetector,
+		maxAllowedImageDimension,
 	)
 
 	videoThumbsGenerator := NewVideoThumbsGenerator(

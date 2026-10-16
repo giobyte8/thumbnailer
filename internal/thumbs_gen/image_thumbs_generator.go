@@ -18,11 +18,12 @@ import (
 )
 
 type ImageThumbsGenerator struct {
-	telemetry       *telemetry.TelemetrySvc
-	formatConverter *format.FormatConverter
-	formatDetector  *format.FormatDetector
-	imgOps4k        *lilliput.ImageOps
-	resizeBuffer    []byte
+	telemetry                *telemetry.TelemetrySvc
+	formatConverter          *format.FormatConverter
+	formatDetector           *format.FormatDetector
+	maxAllowedImageDimension int
+	sharedImgOps             *lilliput.ImageOps
+	resizeBuffer             []byte
 }
 
 // NewImageThumbsGenerator builds an image thumbnail generator with
@@ -31,11 +32,13 @@ func NewImageThumbsGenerator(
 	telemetry *telemetry.TelemetrySvc,
 	formatConverter *format.FormatConverter,
 	formatDetector *format.FormatDetector,
+	maxAllowedImageDimension int,
 ) *ImageThumbsGenerator {
 	return &ImageThumbsGenerator{
-		telemetry:       telemetry,
-		formatConverter: formatConverter,
-		formatDetector:  formatDetector,
+		telemetry:                telemetry,
+		formatConverter:          formatConverter,
+		formatDetector:           formatDetector,
+		maxAllowedImageDimension: maxAllowedImageDimension,
 
 		// --------------------------------------------------------------
 		// ImageOps instance and resizeBuffer are shared across requests.
@@ -48,9 +51,8 @@ func NewImageThumbsGenerator(
 		// See: https://deepwiki.com/discord/lilliput/8.2-batch-processing
 		// --------------------------------------------------------------
 
-		// A default ImageOps with capacity for up to 4K images.
-		// This will be reused for most of requests.
-		imgOps4k: lilliput.NewImageOps(4096),
+		// A single ImageOps instance is bounded by the configured image limit.
+		sharedImgOps: lilliput.NewImageOps(maxAllowedImageDimension),
 
 		// A shared buffer for resize operations to avoid constant
 		// reallocation.
@@ -203,17 +205,16 @@ func (g *ImageThumbsGenerator) generateThumb(
 	//  8192           |  ~256  MB   |  ~512  MB
 	//  16320          |  ~1.02 GB   |  ~2.04 GB
 
-	// Reuse shared ImageOps if original image dimensions are within its capacity,
-	// otherwise create a new one just for this request.
-	var imgOps *lilliput.ImageOps
-	maxDimension := max(origFileDimensions.Width, origFileDimensions.Height)
-	if maxDimension <= 4096 {
-		imgOps = g.imgOps4k
-	} else {
-		imgOps = lilliput.NewImageOps(maxDimension)
-		defer imgOps.Close()
-
-		g.telemetry.Metrics().Increment(metrics.LPDedicatedImageOpsCreated)
+	maxImageAxis := max(origFileDimensions.Width, origFileDimensions.Height)
+	if maxImageAxis > g.maxAllowedImageDimension {
+		g.telemetry.Metrics().Increment(
+			metrics.ImageThumbGeneratorMaxImageDimensionExceeded,
+		)
+		return &MaxImgDimensionExceededError{
+			Width:               origFileDimensions.Width,
+			Height:              origFileDimensions.Height,
+			MaxAllowedDimension: g.maxAllowedImageDimension,
+		}
 	}
 
 	decoder, err := g.decode(origFileBytes)
@@ -235,7 +236,7 @@ func (g *ImageThumbsGenerator) generateThumb(
 		DisableAnimatedOutput: true,
 		EncodeTimeout:         5 * time.Second,
 	}
-	resizedImgBuf, err := imgOps.Transform(decoder, imgOpts, g.resizeBuffer)
+	resizedImgBuf, err := g.sharedImgOps.Transform(decoder, imgOpts, g.resizeBuffer)
 	if err != nil {
 		if errors.Is(err, lilliput.ErrBufTooSmall) {
 			g.telemetry.Metrics().Increment(
@@ -254,10 +255,7 @@ func (g *ImageThumbsGenerator) generateThumb(
 			err)
 	}
 
-	// Clear pixel data if reusing shared ImageOps
-	if imgOps == g.imgOps4k {
-		imgOps.Clear()
-	}
+	g.sharedImgOps.Clear()
 
 	g.telemetry.Metrics().Increment(metrics.ThumbCreated)
 	return nil

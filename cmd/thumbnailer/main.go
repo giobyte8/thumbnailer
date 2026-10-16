@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -75,6 +76,11 @@ func prepareThumbsService(telemetry *telemetry.TelemetrySvc) *services.Thumbnail
 		)
 		os.Exit(1)
 	}
+	maxAllowedImageDimension, err := parseMaxAllowedImageDimension(os.Getenv("MAX_ALLOWED_IMAGE_DIMENSION_PX"))
+	if err != nil {
+		slog.Error("Invalid MAX_ALLOWED_IMAGE_DIMENSION_PX", "error", err)
+		os.Exit(1)
+	}
 
 	widthsStr := os.Getenv("THUMBNAIL_WIDTHS_PX")
 
@@ -112,14 +118,52 @@ func prepareThumbsService(telemetry *telemetry.TelemetrySvc) *services.Thumbnail
 			os.Exit(1)
 		}
 
+		// Keep output dimensions within shared ImageOps capacity to preserve
+		// the configured image-processing memory bound.
+		if err := validateThumbnailWidth(width, maxAllowedImageDimension); err != nil {
+			slog.Error("Thumbnail width exceeds maximum image dimension", "error", err)
+			os.Exit(1)
+		}
+
 		thumbsConfig.ThumbnailWidths = append(
 			thumbsConfig.ThumbnailWidths,
 			width,
 		)
 	}
 
-	thumbsGenerator := thumbsgen.NewRoutedThumbsGenerator(telemetry)
+	thumbsGenerator := thumbsgen.NewRoutedThumbsGenerator(
+		telemetry,
+		maxAllowedImageDimension,
+	)
 	return services.NewThumbnailsService(thumbsConfig, thumbsGenerator)
+}
+
+func parseMaxAllowedImageDimension(value string) (int, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, fmt.Errorf("MAX_ALLOWED_IMAGE_DIMENSION_PX is required")
+	}
+
+	maxAllowedImageDimension, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("invalid MAX_ALLOWED_IMAGE_DIMENSION_PX %q: %w", value, err)
+	}
+	if maxAllowedImageDimension <= 0 {
+		return 0, fmt.Errorf("MAX_ALLOWED_IMAGE_DIMENSION_PX must be a positive integer: %d", maxAllowedImageDimension)
+	}
+
+	return maxAllowedImageDimension, nil
+}
+
+func validateThumbnailWidth(width int, maxAllowedImageDimension int) error {
+	if width > maxAllowedImageDimension {
+		return fmt.Errorf(
+			"thumbnail width %d exceeds MAX_ALLOWED_IMAGE_DIMENSION_PX %d",
+			width,
+			maxAllowedImageDimension,
+		)
+	}
+	return nil
 }
 
 func main() {
