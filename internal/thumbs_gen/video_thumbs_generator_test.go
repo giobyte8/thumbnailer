@@ -117,6 +117,7 @@ func TestVideoThumbsGenerator_Integration_WithoutFormatsCheck(t *testing.T) {
 func mkVideoGenerator(t *testing.T) *VideoThumbsGenerator {
 	t.Helper()
 	t.Setenv("OTEL_ENABLED", "false")
+	t.Setenv(lpResourcesRetentionEnv, "")
 
 	telemetrySvc, err := telemetry.NewTelemetrySvc(context.Background())
 	if err != nil {
@@ -128,12 +129,15 @@ func mkVideoGenerator(t *testing.T) *VideoThumbsGenerator {
 
 	fmtDetector := format.NewFormatDetector()
 	frameExtractor := frameextractor.NewFrameExtractor(telemetrySvc, fmtDetector)
-	imageGenerator := NewImageThumbsGenerator(
+	imageGenerator, err := NewImageThumbsGenerator(
 		telemetrySvc,
 		format.NewFormatConverter(telemetrySvc, fmtDetector),
 		fmtDetector,
 		4096,
 	)
+	if err != nil {
+		t.Fatalf("failed to initialize image generator: %v", err)
+	}
 
 	return NewVideoThumbsGenerator(
 		frameExtractor,

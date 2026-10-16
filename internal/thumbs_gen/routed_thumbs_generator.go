@@ -22,7 +22,7 @@ type RoutedThumbsGenerator struct {
 func NewRoutedThumbsGenerator(
 	telemetryService *telemetry.TelemetrySvc,
 	maxAllowedImageDimension int,
-) *RoutedThumbsGenerator {
+) (*RoutedThumbsGenerator, error) {
 	formatDetector := format.NewFormatDetector()
 	formatConverter := format.NewFormatConverter(
 		telemetryService,
@@ -31,12 +31,15 @@ func NewRoutedThumbsGenerator(
 		telemetryService,
 		formatDetector)
 
-	imageThumbsGenerator := NewImageThumbsGenerator(
+	imageThumbsGenerator, err := NewImageThumbsGenerator(
 		telemetryService,
 		formatConverter,
 		formatDetector,
 		maxAllowedImageDimension,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize image thumbnail generator: %w", err)
+	}
 
 	videoThumbsGenerator := NewVideoThumbsGenerator(
 		frameExtractor,
@@ -58,7 +61,7 @@ func NewRoutedThumbsGenerator(
 		telemetry:      telemetryService,
 		formatDetector: formatDetector,
 		routes:         routes,
-	}
+	}, nil
 }
 
 // Generate dispatches thumbnail generation to appropriate generator

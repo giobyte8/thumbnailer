@@ -185,6 +185,7 @@ func TestImageThumbsGenerator_UnsupportedMedia(t *testing.T) {
 func mkGenerator(t *testing.T, maxDimension ...int) *ImageThumbsGenerator {
 	t.Helper()
 	t.Setenv("OTEL_ENABLED", "false")
+	t.Setenv(lpResourcesRetentionEnv, "")
 
 	telemetrySvc, err := telemetry.NewTelemetrySvc(context.Background())
 	if err != nil {
@@ -199,12 +200,16 @@ func mkGenerator(t *testing.T, maxDimension ...int) *ImageThumbsGenerator {
 	if len(maxDimension) > 0 {
 		configuredMaxDimension = maxDimension[0]
 	}
-	return NewImageThumbsGenerator(
+	generator, err := NewImageThumbsGenerator(
 		telemetrySvc,
 		format.NewFormatConverter(telemetrySvc, fmtDetector),
 		fmtDetector,
 		configuredMaxDimension,
 	)
+	if err != nil {
+		t.Fatalf("failed to initialize image generator: %v", err)
+	}
+	return generator
 }
 
 func assertThumbnailCreated(t *testing.T, thumbAbsPath string, expectedWidth int) {

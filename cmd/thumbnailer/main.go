@@ -131,10 +131,14 @@ func prepareThumbsService(telemetry *telemetry.TelemetrySvc) *services.Thumbnail
 		)
 	}
 
-	thumbsGenerator := thumbsgen.NewRoutedThumbsGenerator(
+	thumbsGenerator, err := thumbsgen.NewRoutedThumbsGenerator(
 		telemetry,
 		maxAllowedImageDimension,
 	)
+	if err != nil {
+		slog.Error("Failed to initialize thumbnail generator", "error", err)
+		os.Exit(1)
+	}
 	return services.NewThumbnailsService(thumbsConfig, thumbsGenerator)
 }
 
